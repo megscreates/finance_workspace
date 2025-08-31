@@ -89,50 +89,108 @@
           <span class="icon"><svg viewBox="0 0 24 24">
               <use href="#i-home" />
             </svg></span>
-          <span>Dashboard</span>
+          <span>Home</span>
         </a>
+        <div class="nav-subgroup" aria-label="Home subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="dash-dashboard">Dashboard</a>
+          <a class="nav-subitem" data-subtab-jump="dash-tasks">Tasks</a>
+          <a class="nav-subitem" data-subtab-jump="dash-messages">Messages</a>
+          <a class="nav-subitem" data-subtab-jump="dash-calendar">Calendar</a>
+          <a class="nav-subitem" data-subtab-jump="dash-reports">Reports</a>
+          <a class="nav-subitem" data-subtab-jump="dash-search">Search</a>
+        </div>
+        
+        <!-- Receivables (moved up) -->
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-mail" />
+              <use href="#i-money" />
             </svg></span>
-          <span>Messages</span>
+          <span>Receivables</span>
         </a>
+        <div class="nav-subgroup" aria-label="Receivables subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="recv-dashboard">Dashboard</a>
+          <a class="nav-subitem" data-subtab-jump="recv-billing">Billing</a>
+          <a class="nav-subitem" data-subtab-jump="recv-collections">Collections</a>
+          <a class="nav-subitem" data-subtab-jump="recv-customers">Customers</a>
+          <a class="nav-subitem" data-subtab-jump="recv-messages">Messages</a>
+          <a class="nav-subitem" data-subtab-jump="recv-requests">Requests</a>
+          <a class="nav-subitem" data-subtab-jump="recv-tasks">Tasks</a>
+          <a class="nav-subitem" data-subtab-jump="recv-calendar">Calendar</a>
+          <a class="nav-subitem" data-subtab-jump="recv-reports">Reports</a>
+          <a class="nav-subitem" data-subtab-jump="recv-search">Search</a>
+        </div>
+        <!-- Payables next -->
+        <a class="nav-item" href="#">
+          <span class="icon"><svg viewBox="0 0 24 24">
+              <use href="#i-cart" />
+            </svg></span>
+          <span>Payables</span>
+        </a>
+        <div class="nav-subgroup is-hidden" aria-label="Payables subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="pay-dashboard">Dashboard</a>
+          <a class="nav-subitem" data-subtab-jump="pay-bills">Bills</a>
+          <a class="nav-subitem" data-subtab-jump="pay-payments">Payments</a>
+          <a class="nav-subitem" data-subtab-jump="pay-vendors">Vendors</a>
+          <a class="nav-subitem" data-subtab-jump="pay-messages">Messages</a>
+          <a class="nav-subitem" data-subtab-jump="pay-requests">Requests</a>
+          <a class="nav-subitem" data-subtab-jump="pay-tasks">Tasks</a>
+          <a class="nav-subitem" data-subtab-jump="pay-calendar">Calendar</a>
+          <a class="nav-subitem" data-subtab-jump="pay-reports">Reports</a>
+          <a class="nav-subitem" data-subtab-jump="pay-search">Search</a>
+        </div>
+        <!-- Cash Flow moved after Payables -->
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
               <use href="#i-growth" />
             </svg></span>
           <span>Cash Flow</span>
         </a>
+        <div class="nav-subgroup is-hidden" aria-label="Cash Flow subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="cf-dashboard">Dashboard</a>
+          <a class="nav-subitem" data-subtab-jump="cf-ar">AR Overview</a>
+          <a class="nav-subitem" data-subtab-jump="cf-ap">AP Overview</a>
+          <a class="nav-subitem" data-subtab-jump="cf-forecast">Forecast</a>
+          <a class="nav-subitem" data-subtab-jump="cf-transactions">Transactions</a>
+          <a class="nav-subitem" data-subtab-jump="cf-messages">Messages</a>
+          <a class="nav-subitem" data-subtab-jump="cf-requests">Requests</a>
+          <a class="nav-subitem" data-subtab-jump="cf-tasks">Tasks</a>
+          <a class="nav-subitem" data-subtab-jump="cf-calendar">Calendar</a>
+          <a class="nav-subitem" data-subtab-jump="cf-reports">Reports</a>
+          <a class="nav-subitem" data-subtab-jump="cf-search">Search</a>
+        </div>
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-stats" />
-            </svg></span>
-          <span>Receivables</span>
-        </a>
-        <a class="nav-item" href="#">
-          <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-mail" />
-            </svg></span>
-          <span>Payables</span>
-        </a>
-        <a class="nav-item" href="#">
-          <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-stats" />
+              <use href="#i-palette" />
             </svg></span>
           <span>Projects</span>
         </a>
+        <div class="nav-subgroup is-hidden" aria-label="Projects subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="projects-active">Active</a>
+          <a class="nav-subitem" data-subtab-jump="projects-roadmap">Roadmap</a>
+          <a class="nav-subitem" data-subtab-jump="projects-archive">Archive</a>
+        </div>
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-stats" />
+              <use href="#i-settings" />
             </svg></span>
           <span>Service</span>
         </a>
+        <div class="nav-subgroup is-hidden" aria-label="Service subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="service-requests">Requests</a>
+          <a class="nav-subitem" data-subtab-jump="service-sla">SLAs</a>
+          <a class="nav-subitem" data-subtab-jump="service-history">History</a>
+        </div>
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
-              <use href="#i-stats" />
+              <use href="#i-report" />
             </svg></span>
           <span>Compliance</span>
         </a>
+        <div class="nav-subgroup is-hidden" aria-label="Compliance subtabs">
+          <a class="nav-subitem is-current" data-subtab-jump="compliance-overview">Overview</a>
+          <a class="nav-subitem" data-subtab-jump="compliance-policies">Policies</a>
+          <a class="nav-subitem" data-subtab-jump="compliance-audits">Audits</a>
+        </div>
       </nav>
 
       <div class="sidebar-footer">
@@ -158,103 +216,327 @@
           <div class="search">
             <input id="globalSearch" placeholder="Search" />
           </div>
+          
           <button class="icon-btn" title="Bell">🔔</button>
           <div class="avatar" title="Profile">L</div>
         </div>
       </header>
 
-      <section class="cards">
-        <div class="stat-card">
-          <div class="stat-icon"><svg viewBox="0 0 24 24">
-              <use href="#i-money" />
-            </svg></div>
-          <div class="stat-meta">
-            <div class="stat-value">$132,000</div>
-            <div class="stat-label">Revenue this month</div>
-          </div>
-          <button class="dots">⋯</button>
+      <nav class="subnav" role="tablist" aria-label="Home subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="dash-dashboard">Dashboard</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-tasks">Tasks</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-messages">Messages</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-calendar">Calendar</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-reports">Reports</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-search">Search</button>
+      </nav>
+
+<!-- Subtab panels (example for the Dashboard section) -->
+<section class="subtab-panel" data-subtab-panel="dash-dashboard">
+  <div class="widget-toolbar">
+    <div class="left">
+      <button class="icon-btn" id="widgetsEditBtn" title="Customize Widgets">✎</button>
+    </div>
+    <div class="right">
+      <button class="icon-btn" id="widgetsAddBtn" title="Add Widget">＋</button>
+    </div>
+  </div>
+
+  <section class="widget-grid" id="widgetGrid" aria-live="polite"></section>
+
+  <!-- iOS-like bottom sheet: Widget Gallery -->
+  <div class="sheet" id="widgetGallery" aria-hidden="true" role="dialog" aria-label="Widget Gallery">
+    <div class="sheet-scrim" data-sheet-close></div>
+    <div class="sheet-panel">
+      <header class="sheet-header">
+        <div class="sheet-drag-handle"></div>
+        <h3>Widgets</h3>
+        <button class="icon-btn" data-sheet-close title="Close">✕</button>
+      </header>
+      <div class="sheet-content">
+        <div class="widget-gallery">
+          <button class="gallery-item" data-add-widget="kpi"><span class="glyph">📈</span><span>KPI</span></button>
+          <button class="gallery-item" data-add-widget="metrics"><span class="glyph">📊</span><span>Metrics</span></button>
+          <button class="gallery-item" data-add-widget="email"><span class="glyph">✉️</span><span>Email</span></button>
+          <button class="gallery-item" data-add-widget="messages"><span class="glyph">💬</span><span>Messages</span></button>
+          <button class="gallery-item" data-add-widget="calendar"><span class="glyph">📅</span><span>Calendar</span></button>
+          <button class="gallery-item" data-add-widget="announcements"><span class="glyph">📣</span><span>Announcements</span></button>
+          <button class="gallery-item" data-add-widget="reminders"><span class="glyph">⏰</span><span>Reminders</span></button>
+          <button class="gallery-item" data-add-widget="tasks"><span class="glyph">✅</span><span>Tasks</span></button>
+          <button class="gallery-item" data-add-widget="notes"><span class="glyph">📝</span><span>Quick Notes</span></button>
+          <button class="gallery-item" data-add-widget="quicklinks"><span class="glyph">🔗</span><span>Quick Links</span></button>
+          <button class="gallery-item" data-add-widget="calculator"><span class="glyph">🧮</span><span>Calculator</span></button>
+          <button class="gallery-item" data-add-widget="weather"><span class="glyph">☀️</span><span>Weather</span></button>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon"><svg viewBox="0 0 24 24">
-              <use href="#i-tag" />
-            </svg></div>
-          <div class="stat-meta">
-            <div class="stat-value">320k</div>
-            <div class="stat-label">Sales this month</div>
-          </div>
-          <button class="dots">⋯</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Dashboard: Tasks -->
+<section class="subtab-panel is-hidden" data-subtab-panel="dash-tasks">
+  <div class="panel span-2">
+    <div class="panel-header"><h2>My Tasks</h2><span class="muted">Today</span></div>
+    <ul id="tasksList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h2>Quick Add</h2></div>
+    <input id="taskInput" placeholder="Add a task and press Enter" style="width:100%; padding:10px; border-radius:10px; border:1px solid #e7e7f3"/>
+  </div>
+</section>
+
+<!-- Dashboard: Messages overview -->
+<section class="subtab-panel is-hidden" data-subtab-panel="dash-messages">
+  <div class="panel span-2">
+    <div class="panel-header"><h2>Messages</h2><span class="muted">Gmail • Chat • Slack</span></div>
+    <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:16px">
+      <div class="panel" data-service="gmail">
+        <div class="panel-header"><h3>Gmail</h3></div>
+        <div class="service-content">
+          <p class="muted">Connect your Google account to view inbox.</p>
+          <button class="icon-btn" data-connect="gmail">Connect</button>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon"><svg viewBox="0 0 24 24">
-              <use href="#i-users" />
-            </svg></div>
-          <div class="stat-meta">
-            <div class="stat-value">6,458</div>
-            <div class="stat-label">Customers gained</div>
-          </div>
-          <button class="dots">⋯</button>
+      </div>
+      <div class="panel" data-service="gchat">
+        <div class="panel-header"><h3>Google Chat</h3></div>
+        <div class="service-content">
+          <p class="muted">See recent threads and DMs.</p>
+          <button class="icon-btn" data-connect="gchat">Connect</button>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon"><svg viewBox="0 0 24 24">
-              <use href="#i-cart" />
-            </svg></div>
-          <div class="stat-meta">
-            <div class="stat-value">900</div>
-            <div class="stat-label">Orders this month</div>
+      </div>
+      <div class="panel" data-service="slack">
+        <div class="panel-header"><h3>Slack</h3></div>
+        <div class="service-content">
+          <p class="muted">Unread channels and mentions.</p>
+          <button class="icon-btn" data-connect="slack">Connect</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Dashboard: Calendar -->
+<section class="subtab-panel is-hidden" data-subtab-panel="dash-calendar">
+  <div class="panel span-2">
+    <div class="panel-header"><h2>Calendar</h2><span class="muted">Google Calendar</span></div>
+    <div id="calendarConnect">
+      <p class="muted">Connect Google Calendar to show events.</p>
+      <button class="icon-btn" data-connect="gcal">Connect</button>
+    </div>
+    <ul id="calendarList" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px"></ul>
+  </div>
+</section>
+
+<!-- Dashboard: Reports -->
+<section class="subtab-panel is-hidden" data-subtab-panel="dash-reports">
+  <div class="panel span-2">
+    <div class="panel-header"><h2>Reports</h2></div>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px">
+      <input id="reportName" placeholder="New report name" style="flex:1; padding:10px; border-radius:10px; border:1px solid #e7e7f3"/>
+      <button id="createReportBtn" class="icon-btn" title="Create">＋</button>
+    </div>
+    <ul id="reportsList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
+  </div>
+</section>
+
+<!-- Dashboard: Search -->
+<section class="subtab-panel is-hidden" data-subtab-panel="dash-search">
+  <div class="panel span-2">
+    <div class="panel-header"><h2>Global Search</h2></div>
+    <input id="dashSearch" placeholder="Search across data (orders, debtors, etc)" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3"/>
+    <p class="muted">Results update live across modules.</p>
+    <div id="dashSearchResults" style="margin-top:12px; display:grid; gap:8px"></div>
+  </div>
+</section>
+
+      
+
+      <!-- Receivables subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Receivables subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="recv-dashboard">Dashboard</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-billing">Billing</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-collections">Collections</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-customers">Customers</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-messages">Messages</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-requests">Requests</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-tasks">Tasks</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-calendar">Calendar</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-reports">Reports</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="recv-search">Search</button>
+      </nav>
+
+      <!-- Receivables: Dashboard -->
+      <section class="subtab-panel" data-subtab-panel="recv-dashboard">
+        <div class="overview-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <h2>At a Glance</h2>
+              <span class="muted">This month</span>
+            </div>
+            <div class="kpi-tiles">
+              <div class="kpi"><div class="kpi-label">Total A/R</div><div class="kpi-value">$482k</div><div class="kpi-trend up">+3.1%</div></div>
+              <div class="kpi"><div class="kpi-label">Current</div><div class="kpi-value">$322k</div><div class="kpi-trend up">+1.2%</div></div>
+              <div class="kpi"><div class="kpi-label">Overdue</div><div class="kpi-value">$160k</div><div class="kpi-trend down">−0.8%</div></div>
+              <div class="kpi"><div class="kpi-label">DSO</div><div class="kpi-value">34.7</div><div class="kpi-trend up">+0.6</div></div>
+            </div>
           </div>
-          <button class="dots">⋯</button>
+
+          <div class="panel span-2">
+            <div class="panel-header"><h2>A/R Trend</h2><span class="muted">12 months</span></div>
+            <div class="chart-box"><canvas id="arTrendChart"></canvas></div>
+          </div>
         </div>
       </section>
 
-      <section class="grid">
+      <!-- Receivables: Collections -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-collections">
         <div class="panel span-2">
-          <div class="panel-header">
-            <h2>Customer Traffic</h2>
-            <div class="segmented">
-              <button>Day</button><button>Week</button><button class="active">Month</button><button>Year</button>
-            </div>
-          </div>
-          <div class="chart-box"><canvas id="trafficChart"></canvas></div>
+          <div class="panel-header"><h2>Aging Buckets</h2><span class="muted">By amount</span></div>
+          <div class="chart-box"><canvas id="agingBarChart"></canvas></div>
         </div>
-
         <div class="panel">
-          <div class="panel-header">
-            <h2>Social Growth</h2>
-            <span class="muted">6 months</span>
-          </div>
-          <div class="chart-box"><canvas id="growthChart"></canvas></div>
-          <div class="legend">
-            <span class="dot dot-posts"></span> Posts
-            <span class="dot dot-carousels"></span> Carousels
-            <span class="dot dot-stories"></span> Stories
-          </div>
+          <div class="panel-header"><h2>Bucket Mix</h2><span class="muted">Share</span></div>
+          <div class="chart-box"><canvas id="agingPieChart"></canvas></div>
         </div>
-
         <div class="panel span-2">
-          <div class="panel-header">
-            <h2>Order List</h2>
-            <div class="segmented">
-              <button>Monthly</button><button class="active">Weekly</button><button>Today</button>
-            </div>
-          </div>
+          <div class="panel-header"><h2>Risk Signals</h2><span class="muted">Past-due/Dispute/Limit</span></div>
+          <div class="chart-box"><canvas id="riskSignalsChart"></canvas></div>
+        </div>
+      </section>
+
+      <!-- Receivables: Customers -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-customers">
+        <div class="panel span-2">
+          <div class="panel-header"><h2>Top Customers</h2><span class="muted">Amount due</span></div>
           <div class="table-wrap">
-            <table class="table" id="ordersTable">
-              <thead>
-                <tr>
-                  <th class="sortable" data-sort="no">No.</th>
-                  <th class="sortable" data-sort="id">ID</th>
-                  <th class="sortable" data-sort="date">Date</th>
-                  <th class="sortable" data-sort="name">Customer</th>
-                  <th class="sortable" data-sort="amount">Amount</th>
-                  <th class="sortable" data-sort="status">Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="ordersBody"></tbody>
+            <table class="table" id="debtorsTable">
+              <thead><tr>
+                <th class="sortable" data-sort="name">Customer</th>
+                <th class="sortable" data-sort="amount">Amount</th>
+                <th class="sortable" data-sort="bucket">Aging</th>
+                <th class="sortable" data-sort="risk">Risk</th>
+                <th>Action</th>
+              </tr></thead>
+              <tbody id="debtorsBody"></tbody>
             </table>
           </div>
         </div>
       </section>
+
+      <!-- Receivables: placeholders -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-billing"><div class="panel span-2"><div class="panel-header"><h2>Billing</h2></div><p class="muted">Invoices, schedules, and settings.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-messages"><div class="panel span-2"><div class="panel-header"><h2>Messages</h2></div><p class="muted">Gmail/group(s) integration placeholder.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-requests"><div class="panel span-2"><div class="panel-header"><h2>Requests</h2></div><p class="muted">Approvals and forms.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-tasks"><div class="panel span-2"><div class="panel-header"><h2>Tasks</h2></div><p class="muted">Individual, shared, unassigned, overdue.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-calendar"><div class="panel span-2"><div class="panel-header"><h2>Calendar</h2></div><p class="muted">Google Calendar integration.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-reports"><div class="panel span-2"><div class="panel-header"><h2>Reports</h2></div><p class="muted">Saved reports.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="recv-search">
+        <div class="panel span-2">
+          <div class="panel-header"><h2>Search (Receivables)</h2></div>
+          <input id="recvSearch" placeholder="Search receivables (customers, aging, risk)" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3"/>
+          <div id="recvSearchResults" style="margin-top:12px; display:grid; gap:8px"></div>
+        </div>
+      </section>
+
+      <!-- Cash Flow subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Cash Flow subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="cf-dashboard">Dashboard</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-ar">AR Overview</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-ap">AP Overview</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-forecast">Forecast</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-transactions">Transactions</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-messages">Messages</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-requests">Requests</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-tasks">Tasks</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-calendar">Calendar</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-reports">Reports</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-search">Search</button>
+      </nav>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-dashboard"><div class="panel span-2"><div class="panel-header"><h2>Cash Flow Dashboard</h2></div><p class="muted">Tab-specific widgets.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-ar"><div class="panel span-2"><div class="panel-header"><h2>AR Overview</h2></div><p class="muted">Summary of receivables impact.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-ap"><div class="panel span-2"><div class="panel-header"><h2>AP Overview</h2></div><p class="muted">Summary of payables impact.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-forecast"><div class="panel span-2"><div class="panel-header"><h2>Forecast</h2></div><p class="muted">Projection and scenarios.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-transactions"><div class="panel span-2"><div class="panel-header"><h2>Transactions</h2></div><p class="muted">Recent cash transactions.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-messages"><div class="panel span-2"><div class="panel-header"><h2>Messages</h2></div><p class="muted">Gmail/group(s) integration.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-requests"><div class="panel span-2"><div class="panel-header"><h2>Requests</h2></div><p class="muted">Approvals and forms.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-tasks"><div class="panel span-2"><div class="panel-header"><h2>Tasks</h2></div><p class="muted">Task views.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-calendar"><div class="panel span-2"><div class="panel-header"><h2>Calendar</h2></div><p class="muted">Google Calendar integration.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-reports"><div class="panel span-2"><div class="panel-header"><h2>Reports</h2></div><p class="muted">Saved reports.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-search"><div class="panel span-2"><div class="panel-header"><h2>Search (Cash Flow)</h2></div><input id="cfSearch" placeholder="Search cash flow" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3"/><div id="cfSearchResults" style="margin-top:12px; display:grid; gap:8px"></div></div></section>
+
+      <!-- Payables subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Payables subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="pay-dashboard">Dashboard</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-bills">Bills</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-payments">Payments</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-vendors">Vendors</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-messages">Messages</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-requests">Requests</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-tasks">Tasks</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-calendar">Calendar</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-reports">Reports</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="pay-search">Search</button>
+      </nav>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-dashboard"><div class="panel span-2"><div class="panel-header"><h2>Payables Dashboard</h2></div><p class="muted">Tab-specific widgets.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-bills"><div class="panel span-2"><div class="panel-header"><h2>Bills</h2></div><p class="muted">Incoming bills.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-payments"><div class="panel span-2"><div class="panel-header"><h2>Payments</h2></div><p class="muted">Scheduled and completed payments.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-vendors"><div class="panel span-2"><div class="panel-header"><h2>Vendors</h2></div><p class="muted">Top vendors and balances.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-messages"><div class="panel span-2"><div class="panel-header"><h2>Messages</h2></div><p class="muted">Gmail/group(s) integration.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-requests"><div class="panel span-2"><div class="panel-header"><h2>Requests</h2></div><p class="muted">Approvals and forms.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-tasks"><div class="panel span-2"><div class="panel-header"><h2>Tasks</h2></div><p class="muted">Task views.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-calendar"><div class="panel span-2"><div class="panel-header"><h2>Calendar</h2></div><p class="muted">Google Calendar integration.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-reports"><div class="panel span-2"><div class="panel-header"><h2>Reports</h2></div><p class="muted">Saved reports.</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="pay-search"><div class="panel span-2"><div class="panel-header"><h2>Search (Payables)</h2></div><input id="paySearch" placeholder="Search payables" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3"/><div id="paySearchResults" style="margin-top:12px; display:grid; gap:8px"></div></div></section>
+
+      <!-- Projects subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Projects subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="projects-active">Active</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="projects-roadmap">Roadmap</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="projects-archive">Archive</button>
+      </nav>
+      <section class="subtab-panel is-hidden" data-subtab-panel="projects-active">
+        <div class="panel"><div class="panel-header"><h2>Active Projects</h2></div><p class="muted">Current workstreams.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="projects-roadmap">
+        <div class="panel"><div class="panel-header"><h2>Roadmap</h2></div><p class="muted">Upcoming milestones.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="projects-archive">
+        <div class="panel"><div class="panel-header"><h2>Archive</h2></div><p class="muted">Completed projects.</p></div>
+      </section>
+
+      <!-- Service subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Service subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="service-requests">Requests</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="service-sla">SLAs</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="service-history">History</button>
+      </nav>
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-requests">
+        <div class="panel"><div class="panel-header"><h2>Service Requests</h2></div><p class="muted">Open tickets.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-sla">
+        <div class="panel"><div class="panel-header"><h2>SLAs</h2></div><p class="muted">Service-level targets.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-history">
+        <div class="panel"><div class="panel-header"><h2>History</h2></div><p class="muted">Closed tickets.</p></div>
+      </section>
+
+      <!-- Compliance subnav -->
+      <nav class="subnav is-hidden" role="tablist" aria-label="Compliance subtabs">
+        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="compliance-overview">Overview</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="compliance-policies">Policies</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="compliance-audits">Audits</button>
+      </nav>
+      <section class="subtab-panel is-hidden" data-subtab-panel="compliance-overview">
+        <div class="panel"><div class="panel-header"><h2>Compliance Overview</h2></div><p class="muted">Status and ownership.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="compliance-policies">
+        <div class="panel"><div class="panel-header"><h2>Policies</h2></div><p class="muted">Documents and updates.</p></div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="compliance-audits">
+        <div class="panel"><div class="panel-header"><h2>Audits</h2></div><p class="muted">Upcoming audit schedule.</p></div>
+      </section>
+
+      
     </main>
   </div>
 

@@ -49,6 +49,14 @@ body{
   box-shadow: var(--shadow-offset) var(--shadow-offset) 0 rgba(18,19,26,.25);
   border:var(--line) solid var(--outline);
 }
+/* Left-rail subtab list (optional, shown for the active main section) */
+.nav-subgroup{display:flex; flex-direction:column; gap:4px; margin:4px 0 10px 32px}
+.nav-subitem{
+  border-radius:10px; padding:8px 10px; font-size:13px; color:#3f3f56; cursor:pointer;
+  text-decoration:none; background:transparent; border:1px dashed transparent; user-select:none;
+}
+.nav-subitem:hover{background:#f4f1ff}
+.nav-subitem.is-current{background:#fff; border-color:var(--outline); font-weight:700}
 .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px}
 .logo{width:36px;height:36px;border-radius:12px; background:rgba(255,255,255,.22); display:grid; place-items:center; color:#fff; font-weight:800; backdrop-filter:saturate(160%) blur(6px)}
 /* art-style logo */
@@ -131,6 +139,25 @@ body{
 .status.pending{background:#ffeaea; color:#cc3a3a}
 .link{color:var(--primary); font-weight:600; text-decoration:none}
 
+/* Receivables: risk bar + legend */
+.riskbar{
+  display:flex; height:18px; border-radius:999px; overflow:hidden;
+  border:var(--line) var(--outline-style, solid) var(--outline); background:#fff;
+  box-shadow:calc(var(--shadow-offset)/2) calc(var(--shadow-offset)/2) 0 rgba(18,19,26,.12);
+}
+.riskbar-fill{height:100%}
+.riskbar-fill.low{background:linear-gradient(90deg,#e8fff5,#c9ffe7)}
+.riskbar-fill.med{background:linear-gradient(90deg,#fff6e8,#ffe9c9)}
+.riskbar-fill.high{background:linear-gradient(90deg,#ffeaea,#ffd4d4)}
+.risk-legend{display:flex; gap:12px; list-style:none; padding:10px 0 0; margin:0; color:var(--muted); font-size:12px}
+.risk-legend .chip{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px}
+.risk-legend .chip.low{background:#19c37d}
+.risk-legend .chip.med{background:#ffd44d}
+.risk-legend .chip.high{background:#cc3a3a}
+
+/* Receivables: small utilities reusing your layout */
+.subtab-panel[data-subtab-panel^="recv-"] .panel + .panel{margin-top:16px}
+
 /* Responsive */
 @media (max-width: 1100px){
   .cards{grid-template-columns:repeat(2,1fr)}
@@ -170,3 +197,118 @@ body[data-look="glass"] {
 body[data-look="glass"] .panel,
 body[data-look="glass"] .stat-card { backdrop-filter: saturate(160%) blur(10px); border:1px solid rgba(255,255,255,0.45); box-shadow: 0 10px 30px rgba(31,35,70,.12); }
 body[data-look="glass"] .sidebar { background: linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.35)); border-color: rgba(255,255,255,0.45); }
+
+
+/* Subnav (secondary tabs) */
+.subnav{
+  position: sticky; top:0; z-index:10;
+  display:flex; gap:8px; padding:8px 0 12px; margin:0 0 8px;
+  background:linear-gradient(to bottom, rgba(255,255,255,.8), rgba(255,255,255,0));
+  backdrop-filter:saturate(160%) blur(6px);
+}
+.subtab{
+  border:var(--line) var(--outline-style, solid) var(--outline);
+  background:#fff; padding:8px 12px; border-radius:12px; font-weight:600;
+  cursor:pointer; transition:transform .12s ease, box-shadow .12s ease;
+  box-shadow:calc(var(--shadow-offset)/2) calc(var(--shadow-offset)/2) 0 rgba(18,19,26,.15);
+}
+.subtab:is(:hover,:focus-visible){transform:translateY(-1px)}
+.subtab.is-active{
+  background:linear-gradient(145deg, #fff, var(--primary-200));
+  outline: none;
+  box-shadow:0 0 0 4px var(--ring);
+}
+.subtab:focus-visible{ outline:none; box-shadow:0 0 0 4px var(--ring), 0 0 0 6px #fff inset; }
+.subtab-panel.is-hidden{display:none}
+
+/* Generic utility to hide any block when toggled */
+.is-hidden{display:none !important}
+
+
+/* ------------------------- Widget System (iOS-like) ---------------------- */
+.widget-toolbar{display:flex; align-items:center; justify-content:space-between; gap:8px; margin:0 0 12px}
+.widget-grid{ display:grid; grid-template-columns: repeat(6, 1fr); gap:16px; }
+.widget-card{
+  position:relative; border-radius:20px; padding:14px; background:var(--card-fill, #fff);
+  border:1px solid rgba(255,255,255,0.45); backdrop-filter:saturate(160%) blur(10px);
+  box-shadow: 0 10px 30px rgba(31,35,70,.12);
+  display:flex; flex-direction:column; min-height:120px;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.widget-card .widget-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px }
+.widget-title{ display:flex; align-items:center; gap:8px; font-weight:700 }
+.widget-glyph{ width:18px; height:18px; stroke:var(--outline); fill:none; stroke-width:var(--icon-stroke) }
+.widget-actions{ display:flex; align-items:center; gap:6px }
+.mini-btn{
+  border:var(--line) var(--outline-style, solid) var(--outline); background:#fff; padding:4px 8px; border-radius:8px; cursor:pointer; font-weight:700;
+  box-shadow:calc(var(--shadow-offset)/2) calc(var(--shadow-offset)/2) 0 rgba(18,19,26,.15);
+}
+.widget-card .delete-btn{ color:#cc3a3a; }
+.widget-body{ flex:1; display:flex; flex-direction:column; gap:8px }
+
+/* Size behavior (S/M/L like iOS) */
+.widget-card.size-s{ grid-column: span 2; min-height:140px }
+.widget-card.size-m{ grid-column: span 3; min-height:180px }
+.widget-card.size-l{ grid-column: span 6; min-height:260px }
+
+/* Jiggle (edit mode) */
+.widget-grid.is-editing .widget-card{ animation: jiggle .3s ease-in-out infinite; cursor:grab }
+.widget-grid.is-editing .widget-card:active{ cursor:grabbing }
+@keyframes jiggle {
+  0% { transform: rotate(-0.4deg) }
+  50% { transform: rotate(0.4deg) }
+  100% { transform: rotate(-0.4deg) }
+}
+
+/* Mini list for compact widgets */
+.mini-list{ list-style:none; padding:0; margin:0; display:grid; gap:6px; font-size:13px }
+.mini-list li{ background:#fff; border:1px solid rgba(255,255,255,0.45); border-radius:12px; padding:8px; box-shadow:0 2px 8px rgba(31,35,70,.08) }
+
+/* KPI + Weather + Links */
+.kpi-wrap{ display:flex; flex-direction:column; gap:4px; margin-top:4px }
+.kpi-value{ font-size:28px; font-weight:800 }
+.links-wrap{ display:flex; flex-wrap:wrap; gap:10px }
+.calc{ display:flex; gap:8px; align-items:center }
+.calc input, .calc select{ padding:6px; border:1px solid #e7e7f3; border-radius:10px }
+.weather{ display:flex; flex-direction:column; gap:6px; align-items:flex-start; justify-content:center; height:100% }
+.weather .temp{ font-size:36px; font-weight:800 }
+
+/* Bottom sheet (Widget Gallery) */
+.sheet{ position:fixed; inset:0; display:grid; grid-template-rows: 1fr auto; pointer-events:none; }
+.sheet[aria-hidden="true"]{ display:none }
+.sheet .sheet-scrim{ grid-row:1; background:rgba(0,0,0,.18); opacity:1; }
+.sheet-panel{
+  grid-row:2; background:linear-gradient(180deg, rgba(255,255,255,.8), rgba(255,255,255,.6));
+  backdrop-filter:saturate(160%) blur(18px); border-top-left-radius:20px; border-top-right-radius:20px;
+  border:1px solid rgba(255,255,255,0.45);
+  box-shadow:0 -10px 30px rgba(31,35,70,.15);
+  pointer-events:auto;
+}
+.sheet-header{ position:relative; display:flex; align-items:center; justify-content:center; padding:12px }
+.sheet-drag-handle{ width:46px; height:5px; border-radius:999px; background:#d0d3e6 }
+.sheet-header h3{ margin:0; font-size:14px; font-weight:800 }
+.sheet-header .icon-btn{ position:absolute; right:12px; top:8px }
+.sheet-content{ padding:12px 16px 18px }
+.widget-gallery{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px }
+.gallery-item{
+  display:flex; flex-direction:column; align-items:center; gap:6px; padding:10px;
+  border-radius:14px; border:1px solid rgba(255,255,255,0.45); background:#fff; cursor:pointer;
+  box-shadow:0 6px 16px rgba(31,35,70,.12);
+  font-weight:700;
+}
+.gallery-item .glyph{ font-size:20px }
+
+/* Responsive tuning */
+@media (max-width: 1100px){
+  .widget-card.size-s{ grid-column: span 3 }
+  .widget-card.size-m{ grid-column: span 6 }
+  .widget-card.size-l{ grid-column: span 6 }
+  .widget-gallery{ grid-template-columns: repeat(3, 1fr) }
+}
+@media (max-width: 700px){
+  .widget-grid{ grid-template-columns: repeat(4, 1fr) }
+  .widget-card.size-s{ grid-column: span 4 }
+  .widget-card.size-m{ grid-column: span 4 }
+  .widget-card.size-l{ grid-column: span 4 }
+  .widget-gallery{ grid-template-columns: repeat(2, 1fr) }
+}
