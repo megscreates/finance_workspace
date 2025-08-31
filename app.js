@@ -47,17 +47,40 @@ function initWidgetSystem(){
     { id: uid(), type:'weather',    size:'s' },
     { id: uid(), type:'notes',      size:'xs' },
   ];
-  // Helper to map widget size to grid spans (XS=1x1, S=2x1, M=2x2, L=2x3, XL=2x4, XXL=3x3)
-  function spanFor(size){
-    switch(size){
+  // Helper to map widget size to grid spans with orientation
+  // Squares ignore orientation; rectangular sizes flip cols/rows when portrait
+  function spanFor(size, orient){
+    const s = (size || '').toLowerCase();
+    const o = (orient || '').toLowerCase();
+    const isPortrait = o === 'portrait';
+    switch(s){
       case 'xxl': return { cols: 3, rows: 3 }; // 3x3
-      case 'xl':  return { cols: 2, rows: 4 }; // 2x4 (portrait default)
-      case 'l':   return { cols: 2, rows: 3 }; // 2x3
+      case 'xl':  return isPortrait ? { cols: 2, rows: 4 } : { cols: 4, rows: 2 }; // 2x4 (portrait) or 4x2 (landscape)
+      case 'l':   return isPortrait ? { cols: 2, rows: 3 } : { cols: 3, rows: 2 }; // 2x3 or 3x2
       case 'm':   return { cols: 2, rows: 2 }; // 2x2
-      case 's':   return { cols: 2, rows: 1 }; // 2x1
+      case 's':   return isPortrait ? { cols: 1, rows: 2 } : { cols: 2, rows: 1 }; // 1x2 or 2x1
       case 'xs':
       default:    return { cols: 1, rows: 1 }; // 1x1
     }
+  }
+  // Default orientation for each size (only matters for rectangular sizes)
+  function defaultOrientFor(size){
+    switch((size || '').toLowerCase()){
+      case 's': return 'landscape';
+      case 'l': return 'portrait';
+      case 'xl': return 'portrait';
+      default: return ''; // squares / n/a
+    }
+  }
+  // Apply current grid spans to an element based on its size + orientation
+  function applySpans(el){
+    const sz = el.dataset.size || 'xs';
+    const ori = el.dataset.orient || defaultOrientFor(sz) || '';
+    const { cols, rows } = spanFor(sz, ori);
+    el.style.gridColumn = `span ${cols}`;
+    el.style.gridRow = `span ${rows}`;
+    el.classList.toggle('orient-portrait', ori === 'portrait');
+    el.classList.toggle('orient-landscape', ori === 'landscape');
   }
 
   let layout;
@@ -66,12 +89,15 @@ function initWidgetSystem(){
 
   // Render current layout
   grid.innerHTML = '';
-  layout.forEach(w => grid.appendChild(createWidgetEl(w)));
+  layout.forEach(w => {
+    if (!w.orient) { w.orient = defaultOrientFor(w.size) || ''; }
+    grid.appendChild(createWidgetEl(w));
+  });
 
   // Persist on changes
   function save(){
     const items = Array.from(grid.querySelectorAll('.widget-card')).map(el => ({
-      id: el.dataset.id, type: el.dataset.type, size: el.dataset.size
+      id: el.dataset.id, type: el.dataset.type, size: el.dataset.size, orient: el.dataset.orient || ''
     }));
     localStorage.setItem(LS_KEY, JSON.stringify(items));
   }
@@ -143,8 +169,15 @@ function initWidgetSystem(){
     placeholder = document.createElement('div');
     placeholder.className = 'widget-placeholder';
     placeholder.setAttribute('aria-hidden','true');
-    // Set grid spans based on the dragged card's size
-    const {cols, rows} = spanFor(card.dataset.size);
+    // Carry size/orientation classes & data for CSS hooks
+    const sz = (card.dataset.size || 'xs').toLowerCase();
+    const ori = (card.dataset.orient || defaultOrientFor(sz) || '').toLowerCase();
+    placeholder.dataset.size = sz;
+    if (ori) placeholder.dataset.orient = ori;
+    placeholder.classList.add(`size-${sz}`);
+    if (ori) placeholder.classList.add(`orient-${ori}`);
+    // Set grid spans based on the dragged card's size + orientation
+    const {cols, rows} = spanFor(sz, ori);
     placeholder.style.gridColumn = `span ${cols}`;
     placeholder.style.gridRow = `span ${rows}`;
     grid.insertBefore(placeholder, card.nextElementSibling);
@@ -163,6 +196,7 @@ function initWidgetSystem(){
       setTimeout(()=> card.classList.remove('snap'), 250);
     }
     if (placeholder) { placeholder.remove(); placeholder = null; }
+    if (card) { applySpans(card); }
     save();
   });
 
@@ -210,7 +244,7 @@ function initWidgetSystem(){
     const btn = e.target.closest('[data-add-widget]');
     if(!btn) return;
     const type = btn.getAttribute('data-add-widget');
-    const data = { id: uid(), type, size:'s' };
+    const data = { id: uid(), type, size:'s', orient: defaultOrientFor('s') || 'landscape' };
     const el = createWidgetEl(data);
     grid.appendChild(el);
     save();
@@ -221,11 +255,77 @@ function initWidgetSystem(){
   // Utilities
   function uid(){ return 'w' + Math.random().toString(36).slice(2,10); }
 
-  function createWidgetEl({id, type, size}){
+  function sizeToggleLabel(size, orient){
+    const s = (size || '').toLowerCase();
+    const o = (orient || '').toLowerCase();
+    const base = sizeToggleText(s);
+    if (['s','l','xl'].includes(s)){
+      const glyph = o === 'portrait' ? '↕︎' : '↔︎';
+      return `${base} ${glyph}`;
+    }
+    return base;
+  }
+  function openSizeMenu(anchorEl, cardEl){
+    // remove any existing menu
+    document.getElementById('widgetSizeMenu')?.remove();
+    const menu = document.createElement('div');
+    menu.id = 'widgetSizeMenu';
+    Object.assign(menu.style, {
+      position:'absolute', zIndex:'9999', background:'#fff', border:'1px solid #e7e7f3',
+      borderRadius:'12px', boxShadow:'0 10px 30px rgba(18,19,26,.12)', padding:'6px'
+    });
+    const SIZES = ['xs','s','m','l','xl','xxl'];
+    const curr = (cardEl.dataset.size || 'xs').toLowerCase();
+    menu.innerHTML = SIZES.map(s=>`<button data-pick-size="${s}" style="display:block; width:100%; text-align:left; padding:8px 10px; border:none; background:#fff; cursor:pointer; ${s===curr?'font-weight:700':''}">
+      ${s.toUpperCase()}
+    </button>`).join('');
+    document.body.appendChild(menu);
+    const rect = anchorEl.getBoundingClientRect();
+    menu.style.left = `${rect.left + window.scrollX}px`;
+    menu.style.top = `${rect.bottom + 6 + window.scrollY}px`;
+    const onClick = (e)=>{
+      const b = e.target.closest('[data-pick-size]');
+      if (b){
+        const newSize = b.getAttribute('data-pick-size');
+        // Update classes
+        cardEl.classList.remove('size-xs','size-s','size-m','size-l','size-xl','size-xxl');
+        cardEl.classList.add(`size-${newSize}`);
+        cardEl.dataset.size = newSize;
+        // Reset orientation for squares; keep or default for rectangular
+        if (['xs','m','xxl'].includes(newSize)){
+          cardEl.dataset.orient = '';
+        } else {
+          const prevOri = cardEl.dataset.orient;
+          cardEl.dataset.orient = prevOri || defaultOrientFor(newSize) || 'landscape';
+        }
+        // Update button label/title
+        const btn = cardEl.querySelector('.size-toggle');
+        if (btn){
+          btn.textContent = sizeToggleLabel(newSize, cardEl.dataset.orient || '');
+          btn.setAttribute('title', `Resize (current: ${newSize.toUpperCase()}${cardEl.dataset.orient?` · ${cardEl.dataset.orient}`:''})`);
+        }
+        applySpans(cardEl);
+        hydrate(cardEl);
+        save();
+        if (live) { live.textContent = `Resized to ${newSize.toUpperCase()}`; }
+        cleanup();
+      } else if (!menu.contains(e.target)){
+        cleanup();
+      }
+    };
+    function cleanup(){
+      document.removeEventListener('click', onClick, true);
+      menu.remove();
+    }
+    setTimeout(()=> document.addEventListener('click', onClick, true), 0);
+  }
+
+  function createWidgetEl({id, type, size, orient}){
     const el = document.createElement('article');
-    const sz = size || 'xs';
+    const sz = (size || 'xs').toLowerCase();
+    const ori = (orient || defaultOrientFor(sz) || '').toLowerCase();
     el.className = `widget-card size-${sz}`;
-    el.dataset.id = id; el.dataset.type = type; el.dataset.size = sz;
+    el.dataset.id = id; el.dataset.type = type; el.dataset.size = sz; el.dataset.orient = ori;
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', typeTitle(type));
     el.innerHTML = `
@@ -235,29 +335,39 @@ function initWidgetSystem(){
           <span>${typeTitle(type)}</span>
         </div>
         <div class="widget-actions">
-          <button class="mini-btn size-toggle" title="Resize">${sizeToggleText(sz)}</button>
+          <button class="mini-btn size-toggle" title="Resize">${sizeToggleLabel(sz, ori)}</button>
           <button class="mini-btn delete-btn" title="Remove">–</button>
         </div>
       </header>
       <div class="widget-body">${renderBody(type, id)}</div>
     `;
+    applySpans(el);
 
     // Interactions
     el.querySelector('.delete-btn')?.addEventListener('click', ()=>{
       if(!editing) setEditing(true);
       el.remove(); save();
     });
-    el.querySelector('.size-toggle')?.addEventListener('click', ()=>{
-      const next = nextSize(el.dataset.size);
-      el.dataset.size = next;
-      el.classList.remove('size-xs','size-s','size-m','size-l','size-xl','size-xxl');
-      el.classList.add(`size-${next}`);
-      const btn = el.querySelector('.size-toggle');
-      btn.textContent = sizeToggleText(next);
-      btn.setAttribute('title', `Resize (current: ${next.toUpperCase()})`);
-      hydrate(el);
-      save();
-      if (live) { live.textContent = `Resized to ${next.toUpperCase()}`; }
+    el.querySelector('.size-toggle')?.addEventListener('click', (ev)=>{
+      const btn = ev.currentTarget;
+      // Shift+Click flips orientation for rectangular sizes
+      if (ev.shiftKey){
+        const sz = el.dataset.size;
+        if (['s','l','xl'].includes(sz)){
+          const curr = (el.dataset.orient || defaultOrientFor(sz) || 'landscape');
+          const nextOri = curr === 'portrait' ? 'landscape' : 'portrait';
+          el.dataset.orient = nextOri;
+          applySpans(el);
+          // Update button label/title
+          btn.textContent = sizeToggleLabel(sz, nextOri);
+          btn.setAttribute('title', `Resize (current: ${sz.toUpperCase()} · ${nextOri})`);
+          save();
+          if (live) { live.textContent = `Orientation ${nextOri}`; }
+        }
+        return;
+      }
+      // Normal click: open direct size picker
+      openSizeMenu(btn, el);
     });
 
     // Keyboard arrow reordering (iOS-style)
@@ -271,13 +381,29 @@ function initWidgetSystem(){
         ev.preventDefault();
         if(el.nextElementSibling){ grid.insertBefore(el.nextElementSibling, el); save(); }
       }
+      if(ev.key.toLowerCase() === 'r'){
+        ev.preventDefault();
+        const sz = el.dataset.size;
+        if (['s','l','xl'].includes(sz)){
+          const curr = (el.dataset.orient || defaultOrientFor(sz) || 'landscape');
+          const nextOri = curr === 'portrait' ? 'landscape' : 'portrait';
+          el.dataset.orient = nextOri;
+          applySpans(el);
+          const btn = el.querySelector('.size-toggle');
+          if (btn){ btn.textContent = sizeToggleLabel(sz, nextOri); btn.setAttribute('title', `Resize (current: ${sz.toUpperCase()} · ${nextOri})`); }
+          save();
+          if (live) { live.textContent = `Orientation ${nextOri}`; }
+        }
+      }
     });
 
     // After attaching, hydrate any dynamic parts (charts, calculators, etc.)
     setTimeout(()=> hydrate(el), 0);
+    applySpans(el);
     return el;
-  }
+  }S
 
+  
   function nextSize(s){
     // Cycle: xs → s → m → l → xl → xxl → xs
     if (s === 'xs') return 's';

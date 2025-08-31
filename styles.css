@@ -317,6 +317,20 @@ body[data-look="glass"] .sidebar { background: linear-gradient(180deg, rgba(255,
 .widget-card.size-xl{ grid-column: span 2; grid-row: span 4; }
 .widget-card.size-xxl{ grid-column: span 3; grid-row: span 3; }
 
+/* Orientation-aware overrides for rectangular sizes */
+.widget-card.size-s.orient-portrait  { grid-column: span 1; grid-row: span 2; } /* 1x2 */
+.widget-card.size-s.orient-landscape { grid-column: span 2; grid-row: span 1; } /* 2x1 */
+
+.widget-card.size-l.orient-portrait  { grid-column: span 2; grid-row: span 3; } /* 2x3 */
+.widget-card.size-l.orient-landscape { grid-column: span 3; grid-row: span 2; } /* 3x2 */
+
+.widget-card.size-xl.orient-portrait  { grid-column: span 2; grid-row: span 4; } /* 2x4 */
+.widget-card.size-xl.orient-landscape { grid-column: span 4; grid-row: span 2; } /* 4x2 */
+
+/* Orientation visual hooks (no-op unless you style them) */
+.widget-card.orient-portrait  { --orient: portrait; }
+.widget-card.orient-landscape { --orient: landscape; }
+
 /* Jiggle (edit mode) */
 .widget-grid.is-editing .widget-card{ animation: jiggle var(--widget-jiggle-speed) ease-in-out infinite; cursor:grab; transform-origin: 50% 55%; }
 .widget-grid.is-editing .widget-card:active{ cursor:grabbing }
@@ -442,6 +456,20 @@ body.widgets-editing .widget-card:active { cursor:grabbing; }
   grid-column: span 1;
   grid-row: span 1;
 }
+/* Placeholder orientation variants via classes */
+.widget-placeholder.size-s.orient-portrait { grid-column: span 1; grid-row: span 2; }
+.widget-placeholder.size-s.orient-landscape{ grid-column: span 2; grid-row: span 1; }
+.widget-placeholder.size-l.orient-portrait { grid-column: span 2; grid-row: span 3; }
+.widget-placeholder.size-l.orient-landscape{ grid-column: span 3; grid-row: span 2; }
+.widget-placeholder.size-xl.orient-portrait { grid-column: span 2; grid-row: span 4; }
+.widget-placeholder.size-xl.orient-landscape{ grid-column: span 4; grid-row: span 2; }
+/* Placeholder orientation variants via data attributes (alternative hook) */
+.widget-placeholder[data-size="s"][data-orient="portrait"]  { grid-column: span 1; grid-row: span 2; }
+.widget-placeholder[data-size="s"][data-orient="landscape"] { grid-column: span 2; grid-row: span 1; }
+.widget-placeholder[data-size="l"][data-orient="portrait"]  { grid-column: span 2; grid-row: span 3; }
+.widget-placeholder[data-size="l"][data-orient="landscape"] { grid-column: span 3; grid-row: span 2; }
+.widget-placeholder[data-size="xl"][data-orient="portrait"] { grid-column: span 2; grid-row: span 4; }
+.widget-placeholder[data-size="xl"][data-orient="landscape"]{ grid-column: span 4; grid-row: span 2; }
 
 /* Widget header/buttons polish */
 .widget-head .widget-title { font-weight:800; letter-spacing:.2px }
@@ -467,4 +495,16 @@ body.widgets-editing .widget-card:active { cursor:grabbing; }
   .widget-card.size-m{ grid-column: span 4 }
   .widget-card.size-l{ grid-column: span 4 }
   .widget-gallery{ grid-template-columns: repeat(2, 1fr) }
+}
+/* Direct size picker (injected by JS as #widgetSizeMenu) */
+#widgetSizeMenu{
+  font-family: inherit;
+}
+#widgetSizeMenu button{
+  font-weight:700; border-radius:10px;
+}
+#widgetSizeMenu button:hover,
+#widgetSizeMenu button:focus-visible{
+  outline:none;
+  background:#f4f1ff;
 }
