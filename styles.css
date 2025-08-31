@@ -278,9 +278,9 @@ body[data-look="glass"] .sidebar { background: linear-gradient(180deg, rgba(255,
   position:relative; border-radius:22px; padding:14px; background:rgba(255,255,255,0.42);
   border:1px solid rgba(255,255,255,0.55); backdrop-filter:saturate(180%) blur(14px);
   box-shadow: 0 12px 36px rgba(31,35,70,.16);
-  display:flex; flex-direction:column; min-height:120px;
+  display:flex; flex-direction:column;
   transition: transform .15s ease, box-shadow .15s ease;
-  will-change: transform, box-shadow, min-height;
+  will-change: transform, box-shadow;
   overflow:hidden;
 }
 .widget-card:hover{
@@ -308,12 +308,14 @@ body[data-look="glass"] .sidebar { background: linear-gradient(180deg, rgba(255,
 }
 .links-wrap .link:hover{ background:rgba(255,255,255,0.75); box-shadow:0 6px 18px rgba(31,35,70,.14) }
 
-/* iOS-like widget proportions (small=2x2, medium=4x2, large=4x4) */
-.widget-card.size-s{ grid-column: span 2; grid-row: span 2; }
-.widget-card.size-m{ grid-column: span 4; grid-row: span 2; }
-.widget-card.size-l{ grid-column: span 4; grid-row: span 4; }
-/* Optional compact size (chip/strip) */
-.widget-card.size-xs{ grid-column: span 2; grid-row: span 1; }
+/* Requested widget proportions:
+   XS=1x1, S=2x1, M=2x2, L=2x3, XL=2x4, XXL=3x3 */
+.widget-card.size-xs{ grid-column: span 1; grid-row: span 1; }
+.widget-card.size-s { grid-column: span 2; grid-row: span 1; }
+.widget-card.size-m { grid-column: span 2; grid-row: span 2; }
+.widget-card.size-l { grid-column: span 2; grid-row: span 3; }
+.widget-card.size-xl{ grid-column: span 2; grid-row: span 4; }
+.widget-card.size-xxl{ grid-column: span 3; grid-row: span 3; }
 
 /* Jiggle (edit mode) */
 .widget-grid.is-editing .widget-card{ animation: jiggle var(--widget-jiggle-speed) ease-in-out infinite; cursor:grab; transform-origin: 50% 55%; }
@@ -437,9 +439,8 @@ body.widgets-editing .widget-card:active { cursor:grabbing; }
   border-radius:22px;
   background:rgba(255,255,255,0.25);
   box-shadow: 0 8px 24px rgba(31,35,70,.12) inset;
-  min-height:100px;
-  grid-column: span 2;
-  grid-row: span 2;
+  grid-column: span 1;
+  grid-row: span 1;
 }
 
 /* Widget header/buttons polish */

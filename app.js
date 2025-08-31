@@ -47,12 +47,17 @@ function initWidgetSystem(){
     { id: uid(), type:'weather',    size:'s' },
     { id: uid(), type:'notes',      size:'xs' },
   ];
-  // Helper to map widget size to grid spans
+  // Helper to map widget size to grid spans (XS=1x1, S=2x1, M=2x2, L=2x3, XL=2x4, XXL=3x3)
   function spanFor(size){
-    if(size==='l') return {cols:4, rows:4};
-    if(size==='m') return {cols:4, rows:2};
-    if(size==='s') return {cols:2, rows:2};
-    return {cols:2, rows:1}; // xs
+    switch(size){
+      case 'xxl': return { cols: 3, rows: 3 }; // 3x3
+      case 'xl':  return { cols: 2, rows: 4 }; // 2x4 (portrait default)
+      case 'l':   return { cols: 2, rows: 3 }; // 2x3
+      case 'm':   return { cols: 2, rows: 2 }; // 2x2
+      case 's':   return { cols: 2, rows: 1 }; // 2x1
+      case 'xs':
+      default:    return { cols: 1, rows: 1 }; // 1x1
+    }
   }
 
   let layout;
@@ -70,6 +75,20 @@ function initWidgetSystem(){
     }));
     localStorage.setItem(LS_KEY, JSON.stringify(items));
   }
+
+  // Keep 1x1 units visually square by syncing row height to column width
+  function syncGridRowSize(){
+    const cs = getComputedStyle(grid);
+    // Rough count of tracks in grid-template-columns (e.g., repeat(N, 1fr))
+    const cols = (cs.gridTemplateColumns.match(/\s/g) || []).length + 1;
+    const gap = parseFloat(cs.gap) || parseFloat(cs.columnGap) || 0;
+    const totalW = grid.clientWidth;
+    const colW = (totalW - gap * (cols - 1)) / cols;
+    grid.style.setProperty('--widget-row', `${Math.max(56, Math.round(colW))}px`);
+  }
+  syncGridRowSize();
+  window.addEventListener('resize', syncGridRowSize);
+  new ResizeObserver(syncGridRowSize).observe(grid);
 
   // Edit mode toggle
   let editing = false;
@@ -231,7 +250,7 @@ function initWidgetSystem(){
     el.querySelector('.size-toggle')?.addEventListener('click', ()=>{
       const next = nextSize(el.dataset.size);
       el.dataset.size = next;
-      el.classList.remove('size-xs','size-s','size-m','size-l');
+      el.classList.remove('size-xs','size-s','size-m','size-l','size-xl','size-xxl');
       el.classList.add(`size-${next}`);
       const btn = el.querySelector('.size-toggle');
       btn.textContent = sizeToggleText(next);
@@ -260,20 +279,25 @@ function initWidgetSystem(){
   }
 
   function nextSize(s){
-    // Cycle: xs → s → m → l → xs
+    // Cycle: xs → s → m → l → xl → xxl → xs
     if (s === 'xs') return 's';
-    if (s === 's') return 'm';
-    if (s === 'm') return 'l';
+    if (s === 's')  return 'm';
+    if (s === 'm')  return 'l';
+    if (s === 'l')  return 'xl';
+    if (s === 'xl') return 'xxl';
     return 'xs';
   }
 
   function sizeToggleText(size) {
-    // For xs, use "XS" or "□" for clarity; for others, S/M/L
-    if (size === 'xs') return 'XS';
-    if (size === 's') return 'S';
-    if (size === 'm') return 'M';
-    if (size === 'l') return 'L';
-    return size.toUpperCase().slice(0,1);
+    switch(size){
+      case 'xs': return 'XS';
+      case 's':  return 'S';
+      case 'm':  return 'M';
+      case 'l':  return 'L';
+      case 'xl': return 'XL';
+      case 'xxl':return 'XXL';
+      default:   return String(size || '').toUpperCase();
+    }
   }
   function typeTitle(t){
     return ({
