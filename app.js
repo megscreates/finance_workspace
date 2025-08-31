@@ -26,17 +26,34 @@ function initWidgetSystem(){
   const sheet = document.getElementById('widgetGallery');
   if(!grid || !addBtn || !editBtn || !sheet) return;
 
+  // Live region for subtle announcements (resize, mode toggles)
+  let live = document.getElementById('widgetsLive');
+  if (!live) {
+    live = document.createElement('div');
+    live.id = 'widgetsLive';
+    live.setAttribute('aria-live','polite');
+    live.className = 'visually-hidden';
+    document.body.appendChild(live);
+  }
+
   const LS_KEY = 'widgets.layout.v1';
   const DEFAULT_LAYOUT = [
-    { id: uid(), type:'kpi',        size:'m' },
-    { id: uid(), type:'metrics',    size:'l' },
-    { id: uid(), type:'tasks',      size:'m' },
-    { id: uid(), type:'calendar',   size:'m' },
-    { id: uid(), type:'quicklinks', size:'s' },
-    { id: uid(), type:'email',      size:'s' },
+    { id: uid(), type:'kpi',        size:'xs' },
+    { id: uid(), type:'metrics',    size:'xs' },
+    { id: uid(), type:'tasks',      size:'xs' },
+    { id: uid(), type:'calendar',   size:'s' },
+    { id: uid(), type:'quicklinks', size:'xs' },
+    { id: uid(), type:'email',      size:'xs' },
     { id: uid(), type:'weather',    size:'s' },
-    { id: uid(), type:'notes',      size:'m' },
+    { id: uid(), type:'notes',      size:'xs' },
   ];
+  // Helper to map widget size to grid spans
+  function spanFor(size){
+    if(size==='l') return {cols:4, rows:4};
+    if(size==='m') return {cols:4, rows:2};
+    if(size==='s') return {cols:2, rows:2};
+    return {cols:2, rows:1}; // xs
+  }
 
   let layout;
   try { layout = JSON.parse(localStorage.getItem(LS_KEY) || 'null'); } catch { layout = null; }
@@ -59,10 +76,18 @@ function initWidgetSystem(){
   function setEditing(on){
     editing = !!on;
     grid.classList.toggle('is-editing', editing);
+    document.body.classList.toggle('widgets-editing', editing);
     grid.querySelectorAll('.widget-card').forEach(el => {
       el.setAttribute('draggable', editing ? 'true' : 'false');
+      el.setAttribute('aria-grabbed', 'false');
+      // Set tabIndex for keyboard focusability in edit mode
+      el.tabIndex = editing ? 0 : -1;
     });
     editBtn.classList.toggle('active', editing);
+    // Swap icon/title: ✎ ↔ ✓
+    editBtn.textContent = editing ? '✓' : '✎';
+    editBtn.title = editing ? 'Done' : 'Customize Widgets';
+    if (live) { live.textContent = editing ? 'Edit mode on' : 'Edit mode off'; }
   }
   editBtn.addEventListener('click', ()=> setEditing(!editing));
 
@@ -71,43 +96,90 @@ function initWidgetSystem(){
     const card = e.target.closest('.widget-card');
     if(!card || editing) return;
     let pressed = true;
-    const to = setTimeout(()=>{ if(pressed) setEditing(true); }, 500);
+    const to = setTimeout(()=>{ 
+      if(pressed) { 
+        setEditing(true); 
+        card.classList.add('snap');
+        setTimeout(()=> card.classList.remove('snap'), 250);
+      } 
+    }, 500);
     const cancel = ()=>{ pressed=false; clearTimeout(to); window.removeEventListener('pointerup', cancel, true); window.removeEventListener('pointermove', cancel, true); };
     window.addEventListener('pointerup', cancel, true);
     window.addEventListener('pointermove', cancel, true);
   }, {passive:true});
 
-  // Drag & drop reordering (simplified, DOM order = visual order)
+  // Drag & drop reordering using placeholder
+  let placeholder = null;
+
   grid.addEventListener('dragstart', e=>{
     if(!editing) return e.preventDefault();
     const card = e.target.closest('.widget-card');
     if(!card) return;
     card.classList.add('dragging');
+    card.setAttribute('aria-grabbed','true');
     e.dataTransfer.setData('text/plain', card.dataset.id);
     e.dataTransfer.effectAllowed = 'move';
+
+    // Create placeholder so layout doesn’t collapse
+    placeholder = document.createElement('div');
+    placeholder.className = 'widget-placeholder';
+    placeholder.setAttribute('aria-hidden','true');
+    // Set grid spans based on the dragged card's size
+    const {cols, rows} = spanFor(card.dataset.size);
+    placeholder.style.gridColumn = `span ${cols}`;
+    placeholder.style.gridRow = `span ${rows}`;
+    grid.insertBefore(placeholder, card.nextElementSibling);
   });
+
   grid.addEventListener('dragend', e=>{
     const card = e.target.closest('.widget-card');
-    if(card) card.classList.remove('dragging');
+    if(card) {
+      card.classList.remove('dragging');
+      card.setAttribute('aria-grabbed','false');
+      if (placeholder && placeholder.parentNode === grid) {
+        grid.insertBefore(card, placeholder);
+      }
+      // Snap animation feedback on drop
+      card.classList.add('snap');
+      setTimeout(()=> card.classList.remove('snap'), 250);
+    }
+    if (placeholder) { placeholder.remove(); placeholder = null; }
     save();
   });
+
   grid.addEventListener('dragover', e=>{
     if(!editing) return;
     e.preventDefault();
+    // Auto-scroll window when dragging near viewport edges
+    const edge = 80; // px
+    const speed = 18; // px per frame
+    const y = e.clientY;
+    if (y < edge) window.scrollBy(0, -speed);
+    else if (window.innerHeight - y < edge) window.scrollBy(0, speed);
+    const x = e.clientX;
+    if (x < edge) window.scrollBy(-speed, 0);
+    else if (window.innerWidth - x < edge) window.scrollBy(speed, 0);
+    if(!placeholder) return;
+
     const after = getDragAfterElement(grid, e.clientY);
-    const dragging = grid.querySelector('.dragging');
-    if(!dragging) return;
-    if(after == null) { grid.appendChild(dragging); }
-    else { grid.insertBefore(dragging, after); }
+    if(after == null) {
+      grid.appendChild(placeholder);
+    } else {
+      grid.insertBefore(placeholder, after);
+    }
   });
+
   function getDragAfterElement(container, y){
     const els = [...container.querySelectorAll('.widget-card:not(.dragging)')];
-    return els.reduce((closest, child)=>{
+    let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+    for (const child of els){
       const box = child.getBoundingClientRect();
       const offset = y - box.top - box.height / 2;
-      if(offset < 0 && offset > closest.offset){ return { offset, element: child }; }
-      else { return closest; }
-    }, {offset: Number.NEGATIVE_INFINITY}).element;
+      if (offset < 0 && offset > closest.offset) {
+        closest = { offset, element: child };
+      }
+    }
+    return closest.element;
   }
 
   // Bottom sheet gallery
@@ -132,8 +204,9 @@ function initWidgetSystem(){
 
   function createWidgetEl({id, type, size}){
     const el = document.createElement('article');
-    el.className = `widget-card size-${size || 's'}`;
-    el.dataset.id = id; el.dataset.type = type; el.dataset.size = size || 's';
+    const sz = size || 'xs';
+    el.className = `widget-card size-${sz}`;
+    el.dataset.id = id; el.dataset.type = type; el.dataset.size = sz;
     el.setAttribute('role', 'region');
     el.setAttribute('aria-label', typeTitle(type));
     el.innerHTML = `
@@ -143,7 +216,7 @@ function initWidgetSystem(){
           <span>${typeTitle(type)}</span>
         </div>
         <div class="widget-actions">
-          <button class="mini-btn size-toggle" title="Resize">S</button>
+          <button class="mini-btn size-toggle" title="Resize">${sizeToggleText(sz)}</button>
           <button class="mini-btn delete-btn" title="Remove">–</button>
         </div>
       </header>
@@ -158,11 +231,27 @@ function initWidgetSystem(){
     el.querySelector('.size-toggle')?.addEventListener('click', ()=>{
       const next = nextSize(el.dataset.size);
       el.dataset.size = next;
-      el.classList.remove('size-s','size-m','size-l');
+      el.classList.remove('size-xs','size-s','size-m','size-l');
       el.classList.add(`size-${next}`);
-      el.querySelector('.size-toggle').textContent = next.toUpperCase().slice(0,1);
+      const btn = el.querySelector('.size-toggle');
+      btn.textContent = sizeToggleText(next);
+      btn.setAttribute('title', `Resize (current: ${next.toUpperCase()})`);
       hydrate(el);
       save();
+      if (live) { live.textContent = `Resized to ${next.toUpperCase()}`; }
+    });
+
+    // Keyboard arrow reordering (iOS-style)
+    el.addEventListener('keydown', (ev)=>{
+      if(!editing) return;
+      if(ev.key==='ArrowLeft' || ev.key==='ArrowUp'){
+        ev.preventDefault();
+        if(el.previousElementSibling){ grid.insertBefore(el, el.previousElementSibling); save(); }
+      }
+      if(ev.key==='ArrowRight' || ev.key==='ArrowDown'){
+        ev.preventDefault();
+        if(el.nextElementSibling){ grid.insertBefore(el.nextElementSibling, el); save(); }
+      }
     });
 
     // After attaching, hydrate any dynamic parts (charts, calculators, etc.)
@@ -170,7 +259,22 @@ function initWidgetSystem(){
     return el;
   }
 
-  function nextSize(s){ return s==='s' ? 'm' : s==='m' ? 'l' : 's'; }
+  function nextSize(s){
+    // Cycle: xs → s → m → l → xs
+    if (s === 'xs') return 's';
+    if (s === 's') return 'm';
+    if (s === 'm') return 'l';
+    return 'xs';
+  }
+
+  function sizeToggleText(size) {
+    // For xs, use "XS" or "□" for clarity; for others, S/M/L
+    if (size === 'xs') return 'XS';
+    if (size === 's') return 'S';
+    if (size === 'm') return 'M';
+    if (size === 'l') return 'L';
+    return size.toUpperCase().slice(0,1);
+  }
   function typeTitle(t){
     return ({
       kpi:'KPI', metrics:'Metrics', email:'Email', messages:'Messages', calendar:'Calendar',
