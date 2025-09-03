@@ -1,6 +1,12 @@
 // App bootstrap: charts + orders table with search/sort
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Apply stored UI scale early
+  try{
+    const g = JSON.parse(localStorage.getItem('admin.general.v1')||'null');
+    const scale = (g && g.uiScale) ? Number(g.uiScale) : 0.8;
+    if(!isNaN(scale)) document.documentElement.style.setProperty('--ui-scale', String(scale));
+  }catch{}
   initCharts();
   initOrders();
   initSubtabs();
@@ -14,17 +20,64 @@ document.addEventListener('DOMContentLoaded', () => {
   initReceivablesSearch();
   initPayablesSearch();
   initCashflowSearch();
-  initWidgetSystem();
+  initCollections();
+  // Some builds include an optional basic Collections bootstrap.
+  if (typeof initCollectionsBasic === 'function') { initCollectionsBasic(); }
+  initCollectionsTimeline();
+  initMasterGrid();
+  initCollectionsConfig();
+  initAdmin();
+  // Apply any security/feature gates once on load
+  try { applySecurityGates(); } catch {}
+  bootWidgets();
+  // Scoped widgets disabled (Home only)
 });
+
+// ------------------------------ Toast + Export ------------------------------
+function ensureToastContainer(){
+  let c = document.getElementById('toastContainer');
+  if(!c){ c = document.createElement('div'); c.id='toastContainer'; c.setAttribute('aria-live','polite'); c.setAttribute('aria-atomic','true'); Object.assign(c.style,{position:'fixed',right:'16px',bottom:'16px',display:'grid',gap:'8px',zIndex:99999}); document.body.appendChild(c); }
+  return c;
+}
+function showToast(message, type){
+  const c = ensureToastContainer();
+  const t = document.createElement('div'); t.className = 'toast ' + (type||'info'); t.textContent = message;
+  c.appendChild(t);
+  setTimeout(()=>{ t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=> t.remove(), 350); }, 2400);
+}
+function downloadJSON(obj, filename){
+  try{
+    const json = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename || 'export.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }catch{}
+}
+
+async function bootWidgets(){
+  try {
+    const mod = await import('./widget.js');
+    if (mod && typeof mod.initWidgetSystem === 'function') {
+      mod.initWidgetSystem();
+      return;
+    }
+  } catch (e) {
+    // Fallback to inline implementation
+  }
+  if (typeof __inlineInitWidgetSystem === 'function') {
+    __inlineInitWidgetSystem();
+  }
+}
 /* --------------------------------------------------------------------------
    iOS-style Widget System (glass-themed, localStorage-backed)
    -------------------------------------------------------------------------- */
-function initWidgetSystem(){
+function __inlineInitWidgetSystem(){
   const grid = document.getElementById('widgetGrid');
   const addBtn = document.getElementById('widgetsAddBtn');
   const editBtn = document.getElementById('widgetsEditBtn');
-  const sheet = document.getElementById('widgetGallery');
-  if(!grid || !addBtn || !editBtn || !sheet) return;
+  const sideGallery = document.getElementById('widgetGallerySide');
+  if(!grid || !addBtn || !editBtn) return;
 
   // Live region for subtle announcements (resize, mode toggles)
   let live = document.getElementById('widgetsLive');
@@ -34,6 +87,204 @@ function initWidgetSystem(){
     live.setAttribute('aria-live','polite');
     live.className = 'visually-hidden';
     document.body.appendChild(live);
+  }
+
+  // Settings persistence helpers
+  const CFG_KEY = 'widgets.config.v1';
+  function readAllCfg(){ try { return JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch { return {}; } }
+  function getCfg(id){ const all = readAllCfg(); return all[id] || {}; }
+  function setCfg(id, cfg){ const all = readAllCfg(); all[id] = cfg; localStorage.setItem(CFG_KEY, JSON.stringify(all)); }
+
+  function openWidgetSettings(anchorEl, cardEl){
+    document.getElementById('widgetSettingsMenu')?.remove();
+    const menu = document.createElement('div');
+    menu.id = 'widgetSettingsMenu';
+    Object.assign(menu.style, { position:'absolute', zIndex:'9999', background:'#fff', border:'1px solid #e7e7f3', borderRadius:'14px', boxShadow:'0 12px 36px rgba(31,35,70,.16)', padding:'10px', width:'340px' });
+    const id = cardEl.dataset.id; const type = cardEl.dataset.type; const curr = getCfg(id);
+
+    const size = (cardEl.dataset.size||'xs');
+    const ori = (cardEl.dataset.orient||defaultOrientFor(size)||'');
+    const sizeRow = `
+      <div class="settings-row"><label>Size</label>
+        <select id="ws_size">
+          <option value="xs" ${size==='xs'?'selected':''}>XS</option>
+          <option value="s" ${size==='s'?'selected':''}>S</option>
+          <option value="m" ${size==='m'?'selected':''}>M</option>
+          <option value="l" ${size==='l'?'selected':''}>L</option>
+          <option value="xl" ${size==='xl'?'selected':''}>XL</option>
+          <option value="xxl" ${size==='xxl'?'selected':''}>XXL</option>
+        </select>
+        <button id="ws_flip" class="mini-btn" title="Flip orientation">↔︎</button>
+      </div>`;
+
+    function typeSection(t){
+      switch(t){
+        case 'kpi':{
+          const options = (window.WIDGET_DATA?.kpis?.map((k,i)=>({label:k.label||`KPI ${i+1}`, value:i})) || [
+            {label:'Revenue', value:0},{label:'Expenses', value:1},{label:'Profit', value:2}
+          ]);
+          const sel = curr.metricIndex ?? 0;
+          const fmt = curr.format || 'auto';
+          const cur = curr.currency || 'USD';
+          const dec = Number.isInteger(curr.decimals) ? curr.decimals : 0;
+          return `
+            <div class="settings-row"><label>Metric</label>
+              <select id="ws_kpi_idx">${options.map(o=>`<option value="${o.value}" ${String(sel)===String(o.value)?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select>
+            </div>
+            <div class="settings-row"><label>Format</label>
+              <select id="ws_kpi_fmt"><option value="auto" ${fmt==='auto'?'selected':''}>Auto</option><option value="currency" ${fmt==='currency'?'selected':''}>Currency</option><option value="number" ${fmt==='number'?'selected':''}>Number</option><option value="percent" ${fmt==='percent'?'selected':''}>Percent</option></select>
+            </div>
+            <div class="settings-row"><label>Currency</label>
+              <select id="ws_kpi_cur"><option value="USD" ${cur==='USD'?'selected':''}>USD</option><option value="EUR" ${cur==='EUR'?'selected':''}>EUR</option><option value="GBP" ${cur==='GBP'?'selected':''}>GBP</option></select>
+            </div>
+            <div class="settings-row"><label>Decimals</label>
+              <input id="ws_kpi_dec" type="number" min="0" max="4" value="${dec}" />
+            </div>`;
+        }
+        case 'metrics':{
+          const ctype = curr.chartType || 'line';
+          const ds = (window.WIDGET_DATA?.metrics?.datasets || []).map((d,i)=>({label:d.label||`Series ${i+1}`, value:i}));
+          const dsIdx = curr.datasetIndex ?? 0;
+          const color = curr.chartColor || '#6f5cff';
+          return `
+            <div class="settings-row"><label>Chart</label>
+              <select id="ws_chart_type"><option value="line" ${ctype==='line'?'selected':''}>Line</option><option value="bar" ${ctype==='bar'?'selected':''}>Bar</option><option value="area" ${ctype==='area'?'selected':''}>Area</option></select>
+            </div>
+            ${ds.length ? `<div class="settings-row"><label>Dataset</label><select id=\"ws_chart_dataset\">${ds.map(o=>`<option value=\"${o.value}\" ${String(dsIdx)===String(o.value)?'selected':''}>${escapeHtml(o.label)}</option>`).join('')}</select></div>` : ''}
+            <div class="settings-row"><label>Color</label>
+              <select id="ws_chart_color">
+                <option value="#6f5cff" ${color==="#6f5cff"?'selected':''}>Violet</option>
+                <option value="#19c37d" ${color==="#19c37d"?'selected':''}>Green</option>
+                <option value="#ff6a4d" ${color==="#ff6a4d"?'selected':''}>Coral</option>
+                <option value="#64d2ff" ${color==="#64d2ff"?'selected':''}>Sky</option>
+              </select>
+            </div>`;
+        }
+        case 'email':{
+          const accounts = curr.accounts || ['Work'];
+          return `<div class="settings-row"><label>Email Accounts</label>
+            <input id="ws_email_accounts" placeholder="Comma-separated" value="${escapeHtml(accounts.join(', '))}" />
+          </div>`;
+        }
+        case 'messages':{
+          const sources = curr.sources || ['Slack'];
+          return `<div class="settings-row"><label>Sources</label>
+            <input id="ws_msg_sources" placeholder="Slack, GChat" value="${escapeHtml(sources.join(', '))}" />
+          </div>`;
+        }
+        case 'calendar':{
+          const cals = curr.calendars || ['Work'];
+          return `<div class="settings-row"><label>Calendars</label>
+            <input id="ws_cal_accounts" placeholder="Work, Personal" value="${escapeHtml(cals.join(', '))}" />
+          </div>`;
+        }
+        case 'weather':{
+          const loc = curr.location || 'Local';
+          const units = curr.units || 'F';
+          return `
+            <div class="settings-row"><label>Location</label>
+              <input id="ws_weather_loc" placeholder="City" value="${escapeHtml(loc)}" />
+            </div>
+            <div class="settings-row"><label>Units</label>
+              <select id="ws_weather_units"><option value="F" ${units==='F'?'selected':''}>Fahrenheit</option><option value="C" ${units==='C'?'selected':''}>Celsius</option></select>
+            </div>`;
+        }
+        default:
+          return '';
+      }
+    }
+
+    menu.innerHTML = `
+      <div class="settings-head"><strong>Widget Settings</strong><span class="muted">${typeTitle(type)}</span></div>
+      ${sizeRow}
+      ${typeSection(type)}
+      <div class="settings-actions">
+        <div style="margin-right:auto; display:flex; gap:6px">
+          <button class="mini-btn" id="ws_dup" title="Duplicate">Duplicate</button>
+          <button class="mini-btn" id="ws_reset" title="Reset settings">Reset</button>
+        </div>
+        <button class="mini-btn" id="ws_remove" title="Remove">Remove</button>
+        <button class="mini-btn" id="ws_cancel">Cancel</button>
+        <button class="mini-btn" id="ws_save" style="font-weight:800">Save</button>
+      </div>`;
+    document.body.appendChild(menu);
+    // Auto-place menu within viewport with caret direction
+    const rect = anchorEl.getBoundingClientRect();
+    const mrect = menu.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    let left = rect.left + window.scrollX;
+    let top = rect.bottom + 8 + window.scrollY;
+    let caret = 'up';
+    if (top + mrect.height > window.scrollY + vh){
+      // place above
+      top = rect.top + window.scrollY - mrect.height - 8;
+      caret = 'down';
+    }
+    // clamp within viewport horizontally
+    if (left + mrect.width > window.scrollX + vw) left = Math.max(8, vw + window.scrollX - mrect.width - 8);
+    if (left < window.scrollX + 8) left = window.scrollX + 8;
+    menu.style.left = `${left}px`;
+    menu.style.top = `${top}px`;
+    menu.setAttribute('data-caret', caret);
+
+    function cleanup(){ document.removeEventListener('click', onDoc, true); menu.remove(); }
+    function onDoc(e){ if (!menu.contains(e.target) && e.target !== anchorEl) cleanup(); }
+    setTimeout(()=> document.addEventListener('click', onDoc, true), 0);
+
+    function syncFlipEnabled(){ const s = document.getElementById('ws_size').value; const btn = document.getElementById('ws_flip'); btn.disabled = !['s','l','xl'].includes(s); }
+    syncFlipEnabled();
+    document.getElementById('ws_size').addEventListener('change', syncFlipEnabled);
+
+    document.getElementById('ws_flip').addEventListener('click', ()=>{
+      const s = document.getElementById('ws_size').value;
+      if (!['s','l','xl'].includes(s)) return;
+      const currOri = (cardEl.dataset.orient || defaultOrientFor(s) || 'landscape');
+      const next = currOri === 'portrait' ? 'landscape' : 'portrait';
+      cardEl.dataset.orient = next; applySpans(cardEl);
+    });
+
+    document.getElementById('ws_cancel').addEventListener('click', cleanup);
+    document.getElementById('ws_save').addEventListener('click', ()=>{
+      const newSize = document.getElementById('ws_size').value;
+      cardEl.classList.remove('size-xs','size-s','size-m','size-l','size-xl','size-xxl');
+      cardEl.classList.add(`size-${newSize}`);
+      cardEl.dataset.size = newSize;
+      if (!['s','l','xl'].includes(newSize)) cardEl.dataset.orient = '';
+      applySpans(cardEl);
+
+      const cfg = getCfg(id);
+      if (type === 'kpi') { cfg.metricIndex = parseInt(document.getElementById('ws_kpi_idx')?.value || '0', 10); cfg.format = (document.getElementById('ws_kpi_fmt')?.value || 'auto'); cfg.currency = (document.getElementById('ws_kpi_cur')?.value || 'USD'); cfg.decimals = parseInt(document.getElementById('ws_kpi_dec')?.value || '0', 10); }
+      if (type === 'metrics') { cfg.chartType = (document.getElementById('ws_chart_type')?.value || 'line'); cfg.datasetIndex = parseInt(document.getElementById('ws_chart_dataset')?.value || '0', 10); cfg.chartColor = (document.getElementById('ws_chart_color')?.value || '#6f5cff'); }
+      if (type === 'email') cfg.accounts = (document.getElementById('ws_email_accounts')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+      if (type === 'messages') cfg.sources = (document.getElementById('ws_msg_sources')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+      if (type === 'calendar') cfg.calendars = (document.getElementById('ws_cal_accounts')?.value || '').split(',').map(s=>s.trim()).filter(Boolean);
+      if (type === 'weather') { cfg.location = (document.getElementById('ws_weather_loc')?.value || 'Local'); cfg.units = (document.getElementById('ws_weather_units')?.value || 'F'); }
+      setCfg(id, cfg);
+
+      save();
+      hydrate(cardEl);
+      cleanup();
+      if (live) live.textContent = 'Settings saved';
+    });
+
+    // Extra actions
+    document.getElementById('ws_dup')?.addEventListener('click', ()=>{
+      const newId = uid();
+      const cloneData = { id:newId, type:cardEl.dataset.type, size:cardEl.dataset.size, orient:cardEl.dataset.orient||'' };
+      const el = createWidgetEl(cloneData);
+      grid.insertBefore(el, cardEl.nextElementSibling);
+      const cfg = getCfg(id);
+      if (Object.keys(cfg).length) setCfg(newId, JSON.parse(JSON.stringify(cfg)));
+      save(); hydrate(el);
+      if (live) live.textContent = 'Widget duplicated';
+    });
+    document.getElementById('ws_reset')?.addEventListener('click', ()=>{
+      const all = readAllCfg(); delete all[id]; localStorage.setItem(CFG_KEY, JSON.stringify(all));
+      hydrate(cardEl); if (live) live.textContent = 'Settings reset';
+    });
+    document.getElementById('ws_remove')?.addEventListener('click', ()=>{
+      cardEl.remove(); save(); cleanup(); if (live) live.textContent = 'Widget removed';
+    });
   }
 
   const LS_KEY = 'widgets.layout.v1';
@@ -104,9 +355,12 @@ function initWidgetSystem(){
 
   // Keep 1x1 units visually square by syncing row height to column width
   function syncGridRowSize(){
+    // Respect fixed block sizing: if grid uses auto-fit with fixed px columns, do not override --widget-row
     const cs = getComputedStyle(grid);
-    // Rough count of tracks in grid-template-columns (e.g., repeat(N, 1fr))
-    const cols = (cs.gridTemplateColumns.match(/\s/g) || []).length + 1;
+    const gcols = cs.gridTemplateColumns || '';
+    if (/auto-fit/.test(gcols) && /px/.test(gcols)) return;
+    // Otherwise: legacy square syncing for fractional column layouts
+    const cols = (gcols.match(/\s/g) || []).length + 1;
     const gap = parseFloat(cs.gap) || parseFloat(cs.columnGap) || 0;
     const totalW = grid.clientWidth;
     const colW = (totalW - gap * (cols - 1)) / cols;
@@ -122,12 +376,19 @@ function initWidgetSystem(){
     editing = !!on;
     grid.classList.toggle('is-editing', editing);
     document.body.classList.toggle('widgets-editing', editing);
+    const badge = document.getElementById('widgetsEditBadge');
+    if (badge) badge.setAttribute('aria-hidden', editing ? 'false' : 'true');
     grid.querySelectorAll('.widget-card').forEach(el => {
       el.setAttribute('draggable', editing ? 'true' : 'false');
       el.setAttribute('aria-grabbed', 'false');
       // Set tabIndex for keyboard focusability in edit mode
       el.tabIndex = editing ? 0 : -1;
     });
+    // Disable Add button outside edit mode
+    if (addBtn) {
+      addBtn.disabled = !editing;
+      addBtn.title = editing ? 'Add Widget' : 'Add Widget (edit mode only)';
+    }
     editBtn.classList.toggle('active', editing);
     // Swap icon/title: ✎ ↔ ✓
     editBtn.textContent = editing ? '✓' : '✎';
@@ -135,6 +396,8 @@ function initWidgetSystem(){
     if (live) { live.textContent = editing ? 'Edit mode on' : 'Edit mode off'; }
   }
   editBtn.addEventListener('click', ()=> setEditing(!editing));
+  // Initialize UI to non-editing state on load
+  setEditing(false);
 
   // Long press on any widget to enter edit mode
   grid.addEventListener('pointerdown', (e)=>{
@@ -236,20 +499,42 @@ function initWidgetSystem(){
   }
 
   // Bottom sheet gallery
-  function openSheet(){ sheet.setAttribute('aria-hidden','false'); document.body.classList.add('sheet-open'); }
-  function closeSheet(){ sheet.setAttribute('aria-hidden','true'); document.body.classList.remove('sheet-open'); }
-  addBtn.addEventListener('click', openSheet);
-  sheet.addEventListener('click', (e)=>{
-    if(e.target.matches('[data-sheet-close], .sheet-scrim')) closeSheet();
-    const btn = e.target.closest('[data-add-widget]');
-    if(!btn) return;
-    const type = btn.getAttribute('data-add-widget');
-    const data = { id: uid(), type, size:'s', orient: defaultOrientFor('s') || 'landscape' };
-    const el = createWidgetEl(data);
-    grid.appendChild(el);
-    save();
-    closeSheet();
-    setEditing(true);
+  function openGallery(){ if(sideGallery){ sideGallery.classList.remove('is-hidden'); sideGallery.setAttribute('aria-hidden','false'); document.body.classList.add('widgets-gallery-open'); } }
+  function closeGallery(){ if(sideGallery){ sideGallery.classList.add('is-hidden'); sideGallery.setAttribute('aria-hidden','true'); document.body.classList.remove('widgets-gallery-open'); } }
+  // Only allow opening the gallery in edit mode and show in sidebar
+  addBtn.addEventListener('click', (e)=>{
+    if (!editing) {
+      if (live) live.textContent = 'Edit mode on — use + to add widgets';
+      setEditing(true);
+      return; // require a deliberate second click while in edit mode
+    }
+    openGallery();
+  });
+  // Sidebar gallery interactions
+  if (sideGallery){
+    document.getElementById('widgetGalleryClose')?.addEventListener('click', closeGallery);
+    sideGallery.addEventListener('click', (e)=>{
+      const btn = e.target.closest('[data-add-widget]');
+      if(!btn) return;
+      const type = btn.getAttribute('data-add-widget');
+      const data = { id: uid(), type, size:'s', orient: defaultOrientFor('s') || 'landscape' };
+      const el = createWidgetEl(data);
+      grid.appendChild(el);
+      save();
+      setEditing(true);
+    });
+  }
+
+  // Keyboard shortcuts: Esc closes settings/gallery; A toggles gallery in edit mode
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape'){
+      document.getElementById('widgetSettingsMenu')?.remove();
+      closeGallery();
+    }
+    if ((e.key === 'a' || e.key === 'A') && editing){
+      const isOpen = document.body.classList.contains('widgets-gallery-open');
+      if (isOpen) closeGallery(); else openGallery();
+    }
   });
 
   // Utilities
@@ -335,7 +620,7 @@ function initWidgetSystem(){
           <span>${typeTitle(type)}</span>
         </div>
         <div class="widget-actions">
-          <button class="mini-btn size-toggle" title="Resize">${sizeToggleLabel(sz, ori)}</button>
+          <button class="mini-btn settings-btn" title="Settings"><svg viewBox="0 0 24 24" style="width:14px;height:14px;vertical-align:-2px"><use href="#i-settings"/></svg></button>
           <button class="mini-btn delete-btn" title="Remove">–</button>
         </div>
       </header>
@@ -344,31 +629,19 @@ function initWidgetSystem(){
     applySpans(el);
 
     // Interactions
+    el.querySelector('.settings-btn')?.addEventListener('click', (ev)=>{
+      if(!editing){ setEditing(true); if (live) live.textContent = 'Edit mode on — open settings again'; return; }
+      openWidgetSettings(ev.currentTarget, el);
+    });
     el.querySelector('.delete-btn')?.addEventListener('click', ()=>{
-      if(!editing) setEditing(true);
+      if(!editing){
+        setEditing(true);
+        if (live) { live.textContent = 'Edit mode on — tap delete to remove'; }
+        return; // require a second, intentional click
+      }
       el.remove(); save();
     });
-    el.querySelector('.size-toggle')?.addEventListener('click', (ev)=>{
-      const btn = ev.currentTarget;
-      // Shift+Click flips orientation for rectangular sizes
-      if (ev.shiftKey){
-        const sz = el.dataset.size;
-        if (['s','l','xl'].includes(sz)){
-          const curr = (el.dataset.orient || defaultOrientFor(sz) || 'landscape');
-          const nextOri = curr === 'portrait' ? 'landscape' : 'portrait';
-          el.dataset.orient = nextOri;
-          applySpans(el);
-          // Update button label/title
-          btn.textContent = sizeToggleLabel(sz, nextOri);
-          btn.setAttribute('title', `Resize (current: ${sz.toUpperCase()} · ${nextOri})`);
-          save();
-          if (live) { live.textContent = `Orientation ${nextOri}`; }
-        }
-        return;
-      }
-      // Normal click: open direct size picker
-      openSizeMenu(btn, el);
-    });
+    // size toggle removed; size is managed via Settings menu
 
     // Keyboard arrow reordering (iOS-style)
     el.addEventListener('keydown', (ev)=>{
@@ -389,8 +662,6 @@ function initWidgetSystem(){
           const nextOri = curr === 'portrait' ? 'landscape' : 'portrait';
           el.dataset.orient = nextOri;
           applySpans(el);
-          const btn = el.querySelector('.size-toggle');
-          if (btn){ btn.textContent = sizeToggleLabel(sz, nextOri); btn.setAttribute('title', `Resize (current: ${sz.toUpperCase()} · ${nextOri})`); }
           save();
           if (live) { live.textContent = `Orientation ${nextOri}`; }
         }
@@ -401,7 +672,7 @@ function initWidgetSystem(){
     setTimeout(()=> hydrate(el), 0);
     applySpans(el);
     return el;
-  }S
+  }
 
   
   function nextSize(s){
@@ -475,7 +746,7 @@ function initWidgetSystem(){
         try{
           const tasks = JSON.parse(localStorage.getItem('dash.tasks.v1') || '[]');
           if(tasks.length){
-            return `<ul class="mini-list">${tasks.slice(0,5).map(t=>`<li>${t.done?'✅':'⬜️'} ${escapeHtml(t.text)}</li>`).join('')}</ul>`;
+            return `<ul class="mini-list">${tasks.slice(0,5).map(t=>`<li>${escapeHtml(t.text)}${t.done?' (Done)':''}</li>`).join('')}</ul>`;
           }
         }catch{}
         return sampleList(['Review KPIs','Approve invoices','Prep forecast']);
@@ -489,12 +760,29 @@ function initWidgetSystem(){
           <a class="link" href="#">Top Debtors</a>
         </div>`;
       case 'calculator':
-        return `<div class="calc">
-          <input type="number" class="calc-a" placeholder="A"/>
-          <select class="calc-op"><option value="+">+</option><option value="-">−</option><option value="*">×</option><option value="/">÷</option></select>
-          <input type="number" class="calc-b" placeholder="B"/>
-          <button class="mini-btn calc-go">=</button>
-          <span class="calc-out">0</span>
+        return `<div class="calc" data-calc-id="${id}">
+          <div class="calc-display" aria-live="polite">0</div>
+          <div class="calc-pad">
+            <button class="calc-btn op" data-k="ac">AC</button>
+            <button class="calc-btn op" data-k="c">C</button>
+            <button class="calc-btn op" data-k="pm">±</button>
+            <button class="calc-btn op" data-k="/">÷</button>
+            <button class="calc-btn" data-k="7">7</button>
+            <button class="calc-btn" data-k="8">8</button>
+            <button class="calc-btn" data-k="9">9</button>
+            <button class="calc-btn op" data-k="*">×</button>
+            <button class="calc-btn" data-k="4">4</button>
+            <button class="calc-btn" data-k="5">5</button>
+            <button class="calc-btn" data-k="6">6</button>
+            <button class="calc-btn op" data-k="-">−</button>
+            <button class="calc-btn" data-k="1">1</button>
+            <button class="calc-btn" data-k="2">2</button>
+            <button class="calc-btn" data-k="3">3</button>
+            <button class="calc-btn op" data-k="+">+</button>
+            <button class="calc-btn" data-k="0" style="grid-column: span 2">0</button>
+            <button class="calc-btn" data-k=".">.</button>
+            <button class="calc-btn eq" data-k="=">=</button>
+          </div>
         </div>`;
       case 'weather':
         return `<div class="weather"><div class="temp">72°</div><div class="muted">Sunny · Local</div></div>`;
@@ -511,27 +799,48 @@ function initWidgetSystem(){
       ta.addEventListener('input', ()=>{ try{ localStorage.setItem(key, ta.value || ''); }catch{} });
     });
 
-    // KPI: update with window.WIDGET_DATA.kpis if present
+    // Apply widget config on hydrate
+    const cfg = (()=>{ try{ const all = JSON.parse(localStorage.getItem('widgets.config.v1')||'{}'); return all[card.dataset.id]||{}; }catch{return {}} })();
+
+    // KPI: use selected metric index + format when available
     if (card.dataset.type === 'kpi') {
       const wrap = card.querySelector('.kpi-wrap');
       if (wrap && window.WIDGET_DATA?.kpis?.length) {
-        const kpi = window.WIDGET_DATA.kpis[0];
+        const idx = Number.isInteger(cfg.metricIndex) ? cfg.metricIndex : 0;
+        const kpi = window.WIDGET_DATA.kpis[idx] || window.WIDGET_DATA.kpis[0];
+        const val = kpi.value ?? '';
+        const fmt = cfg.format || 'auto';
+        const num = typeof val === 'number' ? val : parseFloat(String(val).replace(/[^0-9.-]/g,''));
+        const pretty = isNaN(num) ? String(val) : formatValue.call({currency: cfg.currency || 'USD', decimals: Number.isInteger(cfg.decimals)?cfg.decimals:0}, num, fmt);
         wrap.innerHTML =
-          `<div class="kpi-value">${escapeHtml(kpi.value ?? '')}</div>
+          `<div class="kpi-value">${escapeHtml(pretty)}</div>
           <div class="kpi-label muted">${escapeHtml(kpi.label ?? '')}</div>
           ${kpi.trend ? `<div class="kpi-trend ${kpi.trend > 0 ? 'up' : (kpi.trend < 0 ? 'down' : '')}">${kpi.trend > 0 ? '+' : (kpi.trend < 0 ? '−' : '')}${Math.abs(kpi.trend)}%</div>` : ''}`;
       }
     }
 
-    // Calculator logic
-    const go = card.querySelector('.calc-go');
-    if(go){
-      const a = card.querySelector('.calc-a'), b = card.querySelector('.calc-b'), op = card.querySelector('.calc-op'), out = card.querySelector('.calc-out');
-      go.addEventListener('click', ()=>{
-        const av = parseFloat(a.value || '0'), bv = parseFloat(b.value || '0');
-        const o = op.value;
-        let r = 0; try { r = o==='+'?av+bv : o==='-'?av-bv : o==='*'?av*bv : (bv!==0?av/bv:0); } catch(e){ r=0; }
-        out.textContent = String(r);
+    // Calculator logic (keypad)
+    const calc = card.querySelector('.calc');
+    if(calc){
+      const display = calc.querySelector('.calc-display');
+      let cur = '0', prev = null, op = null, justEq = false;
+      function setDisplay(v){ display.textContent = v; }
+      function inputDigit(d){ if(justEq){ cur='0'; justEq=false; } cur = (cur==='0' && d!=='.') ? d : (cur.includes('.') && d==='.' ? cur : cur + d); setDisplay(cur); }
+      function setOp(o){ if(op && prev!=null){ compute(); } else { prev = parseFloat(cur); cur='0'; } op = o; justEq=false; }
+      function compute(){ const a = prev ?? 0, b = parseFloat(cur); let r = 0; switch(op){ case '+': r=a+b; break; case '-': r=a-b; break; case '*': r=a*b; break; case '/': r=b!==0? a/b : 0; break; default: r=b; } prev=r; cur='0'; setDisplay(String(r)); }
+      function equals(){ if(op==null && prev==null){ setDisplay(cur); return; } compute(); op=null; justEq=true; }
+      function pm(){ if(cur==='0'){ if(prev!=null){ prev=-prev; setDisplay(String(prev)); } } else { cur = String(-parseFloat(cur)); setDisplay(cur); } }
+      function clearAll(){ cur='0'; prev=null; op=null; justEq=false; setDisplay('0'); }
+      function clearEntry(){ cur='0'; setDisplay('0'); }
+      calc.querySelector('.calc-pad').addEventListener('click', (e)=>{
+        const b = e.target.closest('.calc-btn'); if(!b) return;
+        const k = b.dataset.k;
+        if(/^[0-9]$/.test(k) || k==='.') inputDigit(k);
+        else if(['+','-','*','/'].includes(k)) setOp(k);
+        else if(k==='=') equals();
+        else if(k==='pm') pm();
+        else if(k==='ac') clearAll();
+        else if(k==='c') clearEntry();
       });
     }
 
@@ -542,20 +851,43 @@ function initWidgetSystem(){
       let chartData = null, chartLabels = null;
       if (window.WIDGET_DATA?.metrics) {
         chartLabels = window.WIDGET_DATA.metrics.labels || ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        chartData = window.WIDGET_DATA.metrics.data || [12,14,16,13,18,22,24,23,25,28,27,30];
+        const ds = window.WIDGET_DATA.metrics.datasets;
+        if (Array.isArray(ds) && ds.length){
+          const i = Number.isInteger(cfg.datasetIndex) ? cfg.datasetIndex : 0;
+          chartData = ds[i]?.data || ds[0].data;
+        } else {
+          chartData = window.WIDGET_DATA.metrics.data || [12,14,16,13,18,22,24,23,25,28,27,30];
+        }
       } else {
         chartLabels = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         chartData = [12,14,16,13,18,22,24,23,25,28,27,30];
       }
-      const primary = getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#6f5cff';
+      const primary = (cfg.chartColor || getComputedStyle(document.body).getPropertyValue('--primary').trim() || '#6f5cff');
+      const chartType = (cfg.chartType === 'bar') ? 'bar' : 'line';
+      const isArea = cfg.chartType === 'area' || (chartType === 'line');
       // Remove any existing chart instance on this canvas
       if (canvas._chartInstance) { try { canvas._chartInstance.destroy(); } catch(e){} }
+      const dsCommon = { data:chartData, borderColor:primary, backgroundColor:hexToRgba(primary, 0.12), pointRadius:0 };
+      if (chartType === 'line') Object.assign(dsCommon, { tension:.35, fill:isArea });
+      if (chartType === 'bar') Object.assign(dsCommon, { borderRadius:8 });
       canvas._chartInstance = new Chart(canvas.getContext('2d'), {
-        type:'line',
-        data:{ labels:chartLabels,
-          datasets:[{ data:chartData, tension:.35, borderColor:primary, backgroundColor:'rgba(111,92,255,0.12)', fill:true, pointRadius:0 }] },
+        type: chartType,
+        data:{ labels:chartLabels, datasets:[ dsCommon ] },
         options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{display:false}, y:{display:false} } }
       });
+    }
+
+    // Weather display based on settings
+    if (card.dataset.type === 'weather'){
+      const wrap = card.querySelector('.weather');
+      if (wrap){
+        const units = (cfg.units || 'F');
+        const tempF = 72; // placeholder
+        const t = units === 'C' ? Math.round((tempF-32)*5/9) : tempF;
+        const label = units === 'C' ? '°C' : '°F';
+        const loc = cfg.location || 'Local';
+        wrap.innerHTML = `<div class="temp">${t}${label}</div><div class="muted">Sunny · ${escapeHtml(loc)}</div>`;
+      }
     }
   }
 
@@ -565,6 +897,25 @@ function initWidgetSystem(){
 
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+  }
+
+  function formatValue(num, fmt){
+    try{
+      const decimals = (this && this.decimals != null) ? this.decimals : 0; // optional bind
+      const currency = (this && this.currency) || 'USD';
+      if (fmt === 'currency') return new Intl.NumberFormat(undefined, {style:'currency', currency, maximumFractionDigits:decimals}).format(num);
+      if (fmt === 'percent') return `${(num*100).toFixed(decimals)}%`;
+      if (fmt === 'number') return new Intl.NumberFormat(undefined, {maximumFractionDigits:decimals}).format(num);
+      // auto: choose currency if big, else number
+      if (Math.abs(num) >= 1000) return new Intl.NumberFormat(undefined, {style:'currency', currency, maximumFractionDigits:decimals}).format(num);
+      return new Intl.NumberFormat(undefined, {maximumFractionDigits:decimals}).format(num);
+    }catch{ return String(num); }
+  }
+
+  function hexToRgba(hex, a){
+    const m = hex.replace('#','');
+    const r = parseInt(m.substring(0,2),16), g = parseInt(m.substring(2,4),16), b = parseInt(m.substring(4,6),16);
+    return `rgba(${r},${g},${b},${a})`;
   }
 
   // Expose for debugging
@@ -792,6 +1143,377 @@ const DEBTORS = [
   render();
 })();
 
+// ---------------- Receivables: Collections (CSV-powered) ------------------
+function initCollections(){
+  const table = document.getElementById('collectionsTable');
+  const tbody = document.getElementById('collectionsBody');
+  const search = document.getElementById('colSearch');
+  const bucketSel = document.getElementById('colFilterBucket');
+  const statusSel = document.getElementById('colFilterStatus');
+  const ownerSel = document.getElementById('colFilterOwner');
+  const importInput = document.getElementById('colImport');
+  const importBtn = document.getElementById('colImportBtn');
+  const pasteBtn = document.getElementById('colPasteBtn');
+  const exportBtn = document.getElementById('colExportBtn');
+  const digestBtn = document.getElementById('colDigestBtn');
+  const panel = document.querySelector('[data-subtab-panel="recv-collections"]');
+  if(!table || !tbody || !panel) return;
+
+  const STATE_KEY = 'collections.state.v1';
+  const OWNERS = ['Unassigned','Megan','David','Ray','Khary','Paul','Chris'];
+  let dataset = [];
+  let state = { assignments:{}, statuses:{}, priorities:{}, escalations:{}, notes:{}, emails:{}, milestones:{} };
+  try{ state = Object.assign(state, JSON.parse(localStorage.getItem(STATE_KEY) || '{}')); }catch{}
+
+  function buildOwnerSuggestions(){
+    const dl = document.getElementById('ownersList');
+    if(!dl) return;
+    const set = new Set(OWNERS);
+    // Include any assigned owners from state
+    Object.values(state.assignments||{}).forEach(v=>{ if(v) set.add(v); });
+    dl.innerHTML = Array.from(set).map(o=>`<option value="${o}"></option>`).join('');
+  }
+  buildOwnerSuggestions();
+
+  // Helpers
+  function save(){ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+  function parseCSV(text){
+    const rows=[]; let cur='', inQ=false; let row=[];
+    for(let i=0;i<text.length;i++){
+      const c=text[i]; const n=text[i+1];
+      if(c==='"'){
+        if(inQ && n==='"'){ cur+='"'; i++; }
+        else inQ=!inQ;
+      } else if(c===',' && !inQ){ row.push(cur); cur=''; }
+      else if((c==='\n' || c==='\r') && !inQ){ if(cur.length||row.length){ row.push(cur); rows.push(row); row=[]; cur=''; } }
+      else cur+=c;
+    }
+    if(cur.length||row.length){ row.push(cur); rows.push(row); }
+    const header = rows.shift().map(h=>h.trim());
+    return rows.map(r=>{ const o={}; header.forEach((h,idx)=> o[h]=r[idx]||''); return o; });
+  }
+  function parseNum(s){ return parseFloat(String(s||'0').replace(/[^0-9.-]/g,''))||0; }
+  function fmtMoney(n){ return new Intl.NumberFormat(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0}).format(n); }
+  function daysDiff(due){ const d=new Date(due); const now=new Date(); return Math.ceil((now-d)/86400000); }
+  const FIELD_MAP = {
+    inv: ['AR Ref Nbr','AR Ref Number','Ref Nbr','Invoice','Invoice Number','Invoice No'],
+    due: ['Due Date','Invoice Due Date','Due'],
+    open: ['Open Balance','Open','Amount Due','Balance','Open Balance Amount'],
+    bucket: ['Aging Bucket','Bucket'],
+    days: ['Days Past Due','Days'],
+    cust: ['Customer Name','Customer','Customer ID','CustomerID','Bill To Customer Name']
+  };
+  function getField(rec, key){
+    const list = FIELD_MAP[key] || [key];
+    for(const k of list){ if(rec[k] != null && rec[k] !== '') return rec[k]; }
+    // case-insensitive fallback
+    const lower = Object.keys(rec).reduce((acc,k)=>{ acc[k.toLowerCase()] = rec[k]; return acc; },{});
+    for(const k of list){ const v = lower[k.toLowerCase()]; if(v != null && v !== '') return v; }
+    return '';
+  }
+
+  function showPasteCsvDialog(){
+    let overlay = document.getElementById('csvPasteDialog');
+    if (overlay) overlay.remove();
+    overlay = document.createElement('div');
+    overlay.id = 'csvPasteDialog';
+    Object.assign(overlay.style, { position:'fixed', inset:'0', background:'rgba(18,19,26,0.35)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999 });
+    const box = document.createElement('div');
+    Object.assign(box.style, { width:'min(840px, 96vw)', maxHeight:'80vh', overflow:'auto', background:'#fff', border:'1px solid #e7e7f3', borderRadius:'14px', boxShadow:'0 18px 48px rgba(31,35,70,.25)', padding:'12px' });
+    box.setAttribute('role','dialog');
+    box.setAttribute('aria-modal','true');
+    box.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px">
+        <div>
+          <strong>Paste CSV</strong>
+          <div class="muted" style="font-size:12px">Paste rows including headers. Common columns: AR Ref Nbr, Due Date, Open Balance, Aging Bucket, Days Past Due, Customer Name.</div>
+        </div>
+        <button class="mini-btn" data-close>✕</button>
+      </div>
+      <textarea id="csvPasteText" rows="12" style="width:100%; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:12px; border:1px solid #e7e7f3; border-radius:10px; padding:10px" placeholder="AR Ref Nbr,Due Date,Open Balance,Aging Bucket,Days Past Due,Status,Customer Name\nINV-1001,2025-08-15,1200.00,31–60,45,Open,Acme Inc"></textarea>
+      <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; margin-top:10px">
+        <span id="csvPasteErr" class="muted" style="margin-right:auto"></span>
+        <button class="mini-btn" data-cancel>Cancel</button>
+        <button class="mini-btn" data-load>Load</button>
+      </div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    const close = ()=> overlay.remove();
+    box.querySelector('[data-close]').addEventListener('click', close);
+    box.querySelector('[data-cancel]').addEventListener('click', close);
+    const load = async ()=>{
+      const ta = box.querySelector('#csvPasteText');
+      const raw = (ta.value || '').trim();
+      if(!raw){ const err=box.querySelector('#csvPasteErr'); err.textContent='Nothing to import — paste CSV first.'; return; }
+      try{
+        const cleaned = raw.charCodeAt(0) === 0xFEFF ? raw.slice(1) : raw;
+        const parsed = parseCSV(cleaned);
+        if(!parsed.length){ const err=box.querySelector('#csvPasteErr'); err.textContent='No rows detected. Ensure headers + data.'; return; }
+        dataset = parsed.filter(r=>r['AR Doc Type']!=='Credit Memo');
+        resetFilters();
+        setStatus(`Pasted ${dataset.length} rows`);
+        close();
+        render();
+      }catch(ex){ const err=box.querySelector('#csvPasteErr'); err.textContent='Could not parse CSV.'; }
+    };
+    box.querySelector('[data-load]').addEventListener('click', load);
+    box.querySelector('#csvPasteText').addEventListener('keydown', (e)=>{ if(e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); load(); } });
+    box.querySelector('#csvPasteText').focus();
+  }
+  async function readFileAsText(file){
+    if (file && typeof file.text === 'function'){
+      try { return await file.text(); } catch {}
+    }
+    // Fallback for older Safari and browsers
+    return await new Promise((resolve, reject)=>{
+      try{
+        const reader = new FileReader();
+        reader.onload = (e)=> resolve(e.target && e.target.result || '');
+        reader.onerror = (e)=> reject(e);
+        reader.readAsText(file);
+      }catch(err){ reject(err); }
+    });
+  }
+
+  async function load(){
+    if (dataset.length) return;
+    const demoCsv = `AR Ref Nbr,Due Date,Open Balance,Aging Bucket,Days Past Due,Status,Customer Name,Billing Email\n`
+      + `INV-2001,2025-08-10,3250.00,61–90,72,Open,Acme Manufacturing,ap@acme.com\n`
+      + `INV-2002,2025-08-28,980.25,31–60,33,Promise,Globex Corp,ap@globex.com\n`
+      + `INV-2003,2025-09-12,14500.00,1–30,12,Dispute,Initech,ap@initech.com\n`
+      + `INV-2004,2025-07-22,600.00,90+,102,Open,Umbrella LLC,ap@umbrella.com\n`
+      + `INV-2005,2025-09-30,2100.50,Current,0,Open,Hooli,ap@hooli.com`;
+    try{ dataset = parseCSV(demoCsv); }catch(e){ dataset = []; }
+    render();
+  }
+
+  function currentOwner(inv){ return state.assignments[inv] || 'Unassigned'; }
+  function currentStatus(inv, fallback){ return state.statuses[inv] || fallback || 'Open'; }
+  function currentPriority(inv){ return state.priorities[inv] || 'Normal'; }
+  function escalated(inv){ return !!state.escalations[inv]; }
+  function noteList(inv){ return state.notes[inv] || []; }
+
+  const view = { sortKey:'due', sortDir:'asc', q:'', bucket:'', status:'', owner:'' };
+  function setSort(k){ if(view.sortKey===k) view.sortDir = view.sortDir==='asc'?'desc':'asc'; else { view.sortKey=k; view.sortDir='asc'; } render(); }
+  function resetFilters(){
+    if (search) search.value = '';
+    if (bucketSel) bucketSel.value = '';
+    if (statusSel) statusSel.value = '';
+    if (ownerSel) ownerSel.value = '';
+    view.q=''; view.bucket=''; view.status=''; view.owner='';
+  }
+
+  function render(){
+    if(!dataset.length){ tbody.innerHTML = `<tr><td colspan="10" class="muted" style="text-align:center; padding:16px">Load data via Import or ensure sampledata.csv is served</td></tr>`; return; }
+    let rows = dataset.map(r=>{
+      const inv = getField(r,'inv');
+      const due = getField(r,'due');
+      const bal = parseNum(getField(r,'open'));
+      const bucket = getField(r,'bucket') || bucketFromDays(getField(r,'days'));
+      const daysRaw = getField(r,'days');
+      const days = daysRaw ? parseInt(daysRaw,10) : daysDiff(due);
+      const cust = getField(r,'cust');
+      return { inv, due, days, bucket, cust, bal, status: currentStatus(inv, r['Status']), owner: currentOwner(inv), priority: currentPriority(inv), raw:r };
+    });
+    const q = (view.q||'').toLowerCase();
+    if (q){ rows = rows.filter(o=>[o.inv,o.cust,o.status,o.owner,o.bucket].some(v=>String(v).toLowerCase().includes(q))); }
+    if (view.bucket) rows = rows.filter(o=>o.bucket===view.bucket);
+    if (view.status) rows = rows.filter(o=>o.status===view.status);
+    if (view.owner) rows = rows.filter(o=>o.owner===view.owner);
+    rows.sort((a,b)=>{
+      let A=a[view.sortKey], B=b[view.sortKey];
+      if (view.sortKey==='due'){ A=new Date(a.due); B=new Date(b.due); }
+      if (view.sortKey==='balance'){ A=a.bal; B=b.bal; }
+      if (A<B) return view.sortDir==='asc'?-1:1;
+      if (A>B) return view.sortDir==='asc'?1:-1;
+      return 0;
+    });
+    tbody.innerHTML = rows.map(o=>`
+      <tr data-inv="${o.inv}">
+        <td>${o.due||''}</td>
+        <td>${o.days||''}</td>
+        <td>${o.bucket||''}</td>
+        <td><a class="link" href="#" data-open>${o.inv}</a></td>
+        <td>${escapeHtml(o.cust||'')}</td>
+        <td>${fmtMoney(o.bal)}</td>
+        <td>${escapeHtml(o.status)}</td>
+        <td>${escapeHtml(o.owner)}</td>
+        <td>${escapeHtml(o.priority)}</td>
+        <td><button class="mini-btn" data-open>Open</button></td>
+      </tr>`).join('');
+  }
+
+  function bucketFromDays(d){ const n=parseInt(d||'0',10); if(n<=0) return 'Current'; if(n<=30) return '1–30'; if(n<=60) return '31–60'; if(n<=90) return '61–90'; return '90+'; }
+
+  function openDetail(inv){
+    const rec = dataset.find(r=> getField(r,'inv')===inv); if(!rec) return;
+    const wrap = document.getElementById('colDetailBody');
+    document.getElementById('colDetailTitle').textContent = `${getField(rec,'cust')} — ${inv}`;
+    document.getElementById('colDetailMeta').textContent = `${getField(rec,'due')||'—'} · ${fmtMoney(parseNum(getField(rec,'open')))} · ${getField(rec,'bucket')||bucketFromDays(getField(rec,'days'))}`;
+    const invStatus = currentStatus(inv, rec['Status']);
+    const owner = currentOwner(inv);
+    const pri = currentPriority(inv);
+    const esc = escalated(inv);
+    const notes = noteList(inv);
+    const milestones = state.milestones[inv] || [];
+    wrap.innerHTML = `
+      <div class="col-toolbar">
+        <select id="colDStatus" class="mini-btn"><option>Open</option><option>Dispute</option><option>Promise</option><option>Partial</option><option>Paid</option><option>Hold</option></select>
+        <input id="colDOwner" class="mini-btn" list="ownersList" value="${escapeHtml(owner)}" placeholder="Owner" />
+        <select id="colDPriority" class="mini-btn"><option ${pri==='Low'?'selected':''}>Low</option><option ${pri==='Normal'?'selected':''}>Normal</option><option ${pri==='High'?'selected':''}>High</option><option ${pri==='Urgent'?'selected':''}>Urgent</option></select>
+        <button id="colDEsc" class="mini-btn" title="Escalate">${esc?'Escalated':'Escalate'}</button>
+        <button id="colDEmail" class="mini-btn" title="Email">Email</button>
+      </div>
+      <div>
+        <h3 style="margin:8px 0 6px; font-size:14px">Notes</h3>
+        <div class="collections-notes" id="colNotes">
+          ${notes.map(n=>`<div class="note-item"><div>${escapeHtml(n.text)}</div><div class="note-meta">${n.by||'Me'} · ${new Date(n.ts).toLocaleString()}</div></div>`).join('')}
+        </div>
+        <div class="col-inline" style="margin-top:6px"><input id="colNoteInput" placeholder="Add a note and press Enter" style="flex:1; padding:8px 10px; border:1px solid #e7e7f3; border-radius:10px"/></div>
+      </div>
+      <div>
+        <h3 style="margin:8px 0 6px; font-size:14px">Milestones</h3>
+        <div id="colMilestones" class="collections-notes">
+          ${milestones.map((m,idx)=>`
+            <div class="note-item milestone-item ${(!m.done && m.due && new Date(m.due) < new Date()) ? 'overdue' : ''}" data-idx="${idx}">
+              <div style="display:flex; align-items:center; gap:8px; justify-content:space-between">
+                <label style="display:flex; align-items:center; gap:8px">
+                  <input type="checkbox" ${m.done?'checked':''} data-ms-done>
+                  <span ${m.done?'style="text-decoration:line-through; color:#9aa0b4"':''}>${escapeHtml(m.text)}</span>
+                </label>
+                <div class="note-meta">Due: ${m.due ? new Date(m.due).toLocaleDateString() : '—'}</div>
+              </div>
+      <div class="note-meta">Created ${new Date(m.ts).toLocaleString()}</div>
+              <div style="margin-top:6px"><button class="mini-btn" data-ms-del>Delete</button></div>
+            </div>`).join('')}
+        </div>
+        <div class="col-inline" style="margin-top:6px; gap:6px">
+          <input id="msText" placeholder="Add milestone" style="flex:1; padding:8px 10px; border:1px solid #e7e7f3; border-radius:10px"/>
+          <input id="msDue" type="date" class="mini-btn" style="padding:8px 10px"/>
+          <button id="msAdd" class="mini-btn">Add</button>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:8px 0 6px; font-size:14px">Activity</h3>
+        <div id="colActivity" class="mini-list"></div>
+      </div>`;
+    // Set current select values
+    const selSt = document.getElementById('colDStatus'); selSt.value = invStatus;
+    document.getElementById('colDOwner').value = owner;
+
+    selSt.addEventListener('change', ()=>{ state.statuses[inv]=selSt.value; save(); render(); });
+    const ownerInput = document.getElementById('colDOwner');
+    const onOwnerChange = ()=>{ const val = ownerInput.value.trim(); state.assignments[inv]= val || 'Unassigned'; save(); buildOwnerSuggestions(); render(); };
+    ownerInput.addEventListener('change', onOwnerChange);
+    ownerInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); onOwnerChange(); ownerInput.blur(); } });
+    document.getElementById('colDPriority').addEventListener('change', (e)=>{ state.priorities[inv]=e.target.value; save(); render(); });
+    document.getElementById('colDEsc').addEventListener('click', ()=>{ state.escalations[inv]=!state.escalations[inv]; save(); openDetail(inv); render(); });
+    document.getElementById('colNoteInput').addEventListener('keydown', (e)=>{
+      if(e.key!=='Enter') return; const t=e.target.value.trim(); if(!t) return; e.target.value='';
+      const list = state.notes[inv] = state.notes[inv]||[]; list.unshift({ text:t, ts:Date.now(), by:'Me' }); save(); openDetail(inv);
+    });
+    document.getElementById('colDEmail').addEventListener('click', ()=> openEmailComposer(inv, rec));
+
+    // Milestone handlers
+    const msWrap = document.getElementById('colMilestones');
+    const addMs = ()=>{
+      const text = document.getElementById('msText').value.trim();
+      const due = document.getElementById('msDue').value;
+      if(!text) return;
+      const list = state.milestones[inv] = state.milestones[inv] || [];
+      list.push({ text, due: due||'', done:false, ts: Date.now() });
+      save(); openDetail(inv);
+    };
+    document.getElementById('msAdd').addEventListener('click', addMs);
+    document.getElementById('msText').addEventListener('keydown', (e)=>{ if(e.key==='Enter') addMs(); });
+    msWrap.addEventListener('click', (e)=>{
+      const item = e.target.closest('.milestone-item'); if(!item) return;
+      const idx = parseInt(item.dataset.idx,10);
+      if (e.target.matches('[data-ms-del]')){
+        const list = state.milestones[inv] || []; list.splice(idx,1); save(); openDetail(inv); return;
+      }
+      if (e.target.matches('[data-ms-done]')){
+        const list = state.milestones[inv] || []; if(list[idx]){ list[idx].done = !!e.target.checked; save(); }
+      }
+    });
+  }
+
+  function openEmailComposer(inv, rec){
+    let box = document.getElementById('emailCompose');
+    if(box) box.remove();
+    box = document.createElement('div'); box.id='emailCompose';
+    Object.assign(box.style,{position:'fixed', right:'24px', bottom:'24px', width:'420px', background:'#fff', border:'1px solid #e7e7f3', borderRadius:'12px', boxShadow:'0 12px 36px rgba(31,35,70,.16)', padding:'10px', zIndex:9999});
+    box.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px"><strong>Email ${escapeHtml(rec['Customer Name']||'')}</strong><button class="mini-btn" id="emailClose">✕</button></div>
+      <input id="emTo" placeholder="To" value="${escapeHtml(rec['Billing Email']||'')}" style="width:100%; padding:8px; border:1px solid #e7e7f3; border-radius:10px; margin:4px 0"/>
+      <input id="emSub" placeholder="Subject" value="Invoice ${inv} — ${fmtMoney(parseNum(rec['Open Balance']))}" style="width:100%; padding:8px; border:1px solid #e7e7f3; border-radius:10px; margin:4px 0"/>
+      <textarea id="emBody" rows="6" style="width:100%; padding:8px; border:1px solid #e7e7f3; border-radius:10px">Hello ${escapeHtml(rec['Customer Name']||'')},\n\nThis is a reminder regarding invoice ${inv}, currently ${rec['Aging Bucket']||bucketFromDays(rec['Days Past Due'])}. The outstanding balance is ${fmtMoney(parseNum(rec['Open Balance']))}.\n\nPlease reply with payment timing or any issues.\n\nThanks,\nCollections Team</textarea>
+      <div style="margin-top:8px; display:flex; gap:8px; justify-content:flex-end"><button class="mini-btn" id="emCancel">Cancel</button><button class="mini-btn" id="emSend">Send</button></div>`;
+    document.body.appendChild(box);
+    const close=()=>box.remove(); box.querySelector('#emailClose').addEventListener('click', close); box.querySelector('#emCancel').addEventListener('click', close);
+    box.querySelector('#emSend').addEventListener('click', ()=>{
+      const list = state.emails[inv] = state.emails[inv]||[]; list.push({ to:box.querySelector('#emTo').value, sub:box.querySelector('#emSub').value, body:box.querySelector('#emBody').value, ts:Date.now() }); save(); close(); openDetail(inv);
+    });
+  }
+
+  function exportCSV(){
+    const rows = [['Invoice','Customer','Due','Days','Bucket','Open','Status','Owner','Priority']];
+    Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
+      const tds=tr.querySelectorAll('td');
+      if(!tds.length) return; rows.push([tds[3].innerText, tds[4].innerText, tds[0].innerText, tds[1].innerText, tds[2].innerText, tds[5].innerText, tds[6].innerText, tds[7].innerText, tds[8].innerText]);
+    });
+    const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'});
+    const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='collections_export.csv'; a.click(); URL.revokeObjectURL(a.href);
+  }
+
+  function digest(){
+    if(!dataset.length) return;
+    const rows = Array.from(tbody.querySelectorAll('tr')).map(tr=>({
+      inv: tr.dataset.inv,
+      due: tr.children[0].innerText,
+      days: parseInt(tr.children[1].innerText||'0',10),
+      bucket: tr.children[2].innerText,
+      cust: tr.children[4].innerText,
+      open: tr.children[5].innerText
+    }));
+    const count = rows.length;
+    const over90 = rows.filter(r=>r.bucket==='90+').length;
+    const top5 = rows.sort((a,b)=> (parseNum(b.open)-parseNum(a.open))).slice(0,5);
+    const lines = [
+      `Collections Digest — ${new Date().toLocaleString()}`,
+      `Cases in view: ${count} · 90+: ${over90}`,
+      'Top 5 by balance:',
+      ...top5.map(r=>`  • ${r.cust} — ${r.inv} — ${r.open} — due ${r.due}`)
+    ];
+    const text = lines.join('\n');
+    navigator.clipboard?.writeText(text).catch(()=>{});
+    alert('Digest copied to clipboard');
+  }
+
+  // Wire events
+  table.querySelectorAll('th.sortable').forEach(th=> th.addEventListener('click', ()=>{ setSort(th.dataset.sort); table.querySelectorAll('th.sortable').forEach(t=>t.classList.remove('sort-desc')); if(view.sortDir==='desc') th.classList.add('sort-desc'); }));
+  search?.addEventListener('input', ()=>{ view.q=search.value.trim(); render(); });
+  bucketSel?.addEventListener('change', ()=>{ view.bucket=bucketSel.value; render(); });
+  statusSel?.addEventListener('change', ()=>{ view.status=statusSel.value; render(); });
+  // Owner filter supports free text via input with suggestions
+  ownerSel?.addEventListener('input', ()=>{ view.owner=(ownerSel.value||'').trim(); render(); });
+  ownerSel?.addEventListener('change', ()=>{ view.owner=(ownerSel.value||'').trim(); render(); });
+  tbody.addEventListener('click', (e)=>{ const open = e.target.closest('[data-open]'); if(!open) return; const tr = e.target.closest('tr'); openDetail(tr.dataset.inv); });
+  exportBtn?.addEventListener('click', exportCSV);
+  digestBtn?.addEventListener('click', digest);
+  // Import/paste/sample disabled in standalone flow
+
+  // Drag-and-drop import disabled in standalone flow
+
+  load();
+
+  function setStatus(msg){
+    const el = document.getElementById('colStatus');
+    if(el){ el.textContent = msg; setTimeout(()=>{ if(el.textContent===msg) el.textContent=''; }, 6000); }
+  }
+}
+
 // -------------------------------------------------------------
 // Subtabs (secondary tabs) + left-rail sync
 function initSubtabs(){
@@ -853,6 +1575,17 @@ function initSubtabs(){
       const ps = document.getElementById('dashSearch');
       if (ps) ps.focus();
     }
+
+    // Close sidebar widget gallery if open to prevent overlay blocking
+    const sideGallery = document.getElementById('widgetGallerySide');
+    if (sideGallery){
+      sideGallery.classList.add('is-hidden');
+      sideGallery.setAttribute('aria-hidden','true');
+      document.body.classList.remove('widgets-gallery-open');
+    }
+
+    // Notify listeners which subtab is now active
+    try { document.dispatchEvent(new CustomEvent('subtab:changed', { detail:{ id: target } })); } catch {}
   }, { passive:true });
 
   // Restore initial tab from URL hash (fallback to first .subtab)
@@ -888,21 +1621,811 @@ function initNavSubJumps(){
     });
   }, { passive:true });
 
-  // Main nav item click: jump to its first subtab in the next subgroup
+  // Main nav item click: jump to its Overview subtab for that section
   document.addEventListener('click', (e)=>{
     const item = e.target.closest('.nav-item');
     if(!item) return;
     const subgroup = item.nextElementSibling;
     if(subgroup && subgroup.classList && subgroup.classList.contains('nav-subgroup')){
-      const first = subgroup.querySelector('.nav-subitem');
-      if(first){
-        e.preventDefault();
-        const subtab = first.dataset.subtabJump;
-        const btn = document.querySelector(`.subtab[data-subtab="${subtab}"]`);
+      e.preventDefault();
+      // Map aria-label to subtab prefix
+      const label = subgroup.getAttribute('aria-label')||'';
+      const map = {
+        'Home subtabs':'dash',
+        'Receivables subtabs':'recv',
+        'Payables subtabs':'pay',
+        'Cash Flow subtabs':'cf',
+        'Collections subtabs':'col',
+        'Projects subtabs':'projects',
+        'Service subtabs':'service',
+        'Compliance subtabs':'compliance',
+        'Admin subtabs':'admin'
+      };
+      const prefix = map[label];
+      let targetId = prefix ? `${prefix}-overview` : null;
+      // Fallback to first left-rail subitem if no overview exists
+      if(!document.querySelector(`.subtab[data-subtab="${targetId}"]`)){
+        const first = subgroup.querySelector('.nav-subitem');
+        targetId = first ? first.dataset.subtabJump : null;
+      }
+      if(targetId){
+        const btn = document.querySelector(`.subtab[data-subtab="${targetId}"]`);
         if(btn) btn.click();
       }
     }
   }, { passive:false });
+}
+
+// ------------------------------ Security Gates -----------------------------
+function applySecurityGates(){
+  // Read flags and current role perms
+  let flags = {};
+  try { (JSON.parse(localStorage.getItem('admin.flags.v1')||'[]')||[]).forEach(f=>{ flags[f.key]=!!f.enabled; }); } catch {}
+  let roles = [];
+  try { roles = JSON.parse(localStorage.getItem('admin.roles.v1')||'[]')||[]; } catch {}
+  const currentRoleId = localStorage.getItem('admin.currentRoleId.v1') || (roles[0]?.id || '');
+  const role = roles.find(r=>r.id===currentRoleId) || roles[0] || { perms:{} };
+  const perms = role.perms || {};
+
+  // Toggle visibility for elements with data-perm / data-flag
+  document.querySelectorAll('[data-perm]').forEach(el=>{
+    const need = el.getAttribute('data-perm');
+    const allow = !!perms[need];
+    el.classList.toggle('is-hidden', !allow);
+  });
+  document.querySelectorAll('[data-flag]').forEach(el=>{
+    const key = el.getAttribute('data-flag');
+    const on = !!flags[key];
+    el.classList.toggle('is-hidden', !on);
+  });
+
+  // Ensure active subtab remains visible; otherwise pick first visible
+  document.querySelectorAll('.subnav').forEach(group=>{
+    const tabs = Array.from(group.querySelectorAll('.subtab'));
+    if(tabs.length===0) return;
+    const active = group.querySelector('.subtab.is-active');
+    const visibleTabs = tabs.filter(t=>!t.classList.contains('is-hidden'));
+    if(visibleTabs.length===0) return;
+    if(!active || active.classList.contains('is-hidden')){
+      visibleTabs[0].click();
+    }
+  });
+}
+
+// ------------------------ Collections: Timeline (AR) ------------------------
+function initCollectionsTimeline(){
+  const panel = document.querySelector('[data-subtab-panel="col-overview"]');
+  if(!panel) return;
+  let booted = false;
+  const boot = ()=>{ if(booted) return; booted = true; try{ setupArTimeline(panel); }catch(e){} };
+  document.addEventListener('subtab:changed', (e)=>{ if((e.detail?.id||'')==='col-overview') boot(); });
+  if (!panel.classList.contains('is-hidden')) boot();
+}
+
+// ------------------------ Collections: Configuration ------------------------
+function initCollectionsConfig(){
+  const panel = document.querySelector('[data-subtab-panel="col-config"]');
+  if(!panel) return;
+  let booted=false; const boot=()=>{ if(booted) return; booted=true; try{ setupConfig(panel); }catch(e){} };
+  document.addEventListener('subtab:changed', (e)=>{ if((e.detail?.id||'')==='col-config') boot(); });
+  if(!panel.classList.contains('is-hidden')) boot();
+}
+
+function setupConfig(root){
+  const $ = s => root.querySelector(s);
+  // Draft state: clone Master state
+  let draft = {}; try{ draft = JSON.parse(localStorage.getItem('master.state.v1')||'{}'); }catch{ draft={} }
+  draft = JSON.parse(JSON.stringify(draft||{}));
+
+  const demoTable = $('#cfgDemoTable');
+  const publishBtn = $('#cfgPublish');
+  const agedOn = $('#cfgAgedOn');
+  const aliasGlobal = $('#cfgAliasGlobal');
+  const defView = $('#cfgDefaultView');
+  const list = $('#cfgColsList');
+  const editor = $('#cfgColsEditor');
+
+  function getDataset(){ try{ return (window.MasterSource?.getDataset?.(draft.view)||window.MasterSource?.getDataset?.()) || { headers:[], rows:[] }; }catch{ return { headers:[], rows:[] } } }
+
+  function renderDemo(){ const ds=getDataset(); const cols = (draft.order||ds.headers).filter(h=> (draft.visible||{})[h]!==false ); const head = `<thead><tr>${cols.map(h=>`<th>${(draft.aliasActive && (draft.aliases||{})[h])?draft.aliases[h]:h}</th>`).join('')}</tr></thead>`; const body = `<tbody>${(ds.rows||[]).slice(0,50).map(r=>`<tr>${cols.map(h=>{ const ix=ds.headers.indexOf(h); return `<td>${r[ix]||''}</td>`; }).join('')}</tr>`).join('')}</tbody>`; demoTable.innerHTML = head+body; }
+
+  function renderTableSettings(){
+    try { agedOn.value = draft.agedOn || new Date().toISOString().slice(0,10); } catch {}
+    aliasGlobal.checked = !!draft.aliasActive;
+    try {
+      const views = JSON.parse(localStorage.getItem('master.views.v1')||'[]');
+      const cur = draft.view||'';
+      defView.innerHTML = ['<option value="">— Default View —</option>']
+        .concat(views.map(v=>`<option ${v.name===cur?'selected':''}>${v.name}</option>`)).join('');
+    } catch {}
+  }
+
+  function buildColsList(sel){ const ds=getDataset(); const order = draft.order && draft.order.length ? draft.order.slice() : ds.headers.slice(); draft.order = order; draft.visible = draft.visible || Object.fromEntries(order.map(h=>[h,true])); list.innerHTML = order.map(h=>`<div class="col-item${h===sel?' is-active':''}" data-col="${h}" draggable="true"><span>${h}</span><span style="margin-left:auto" class="muted">${draft.visible[h]?'Visible':'Hidden'}</span></div>`).join(''); list.querySelectorAll('[data-col]')?.forEach(it=>{ it.addEventListener('click',()=>{ list.querySelector('.is-active')?.classList.remove('is-active'); it.classList.add('is-active'); renderColEditor(it.getAttribute('data-col')); }); it.addEventListener('dragstart',e=>{ e.dataTransfer.setData('text/plain', it.getAttribute('data-col')); }); it.addEventListener('dragover',e=>e.preventDefault()); it.addEventListener('drop',e=>{ e.preventDefault(); const src=e.dataTransfer.getData('text/plain'); const dst=it.getAttribute('data-col'); const a=draft.order.slice(); const from=a.indexOf(src); const to=a.indexOf(dst); if(from<0||to<0||src===dst) return; a.splice(to,0,a.splice(from,1)[0]); draft.order=a; saveDraft(); buildColsList(src); renderDemo(); }); }); if(order.length) renderColEditor(sel||order[0]); }
+
+  function renderColEditor(col){ const v = (draft.visible||{})[col]!==false; const pinned = (draft.pinned||[]).includes(col); editor.innerHTML = `<div class="panel" style="padding:10px; display:grid; gap:8px"><div class="kv"><label>Alias</label><div class="val"><input id="edAlias" value="${(draft.aliases||{})[col]||''}"/></div></div><label><input id="edVisible" type="checkbox" ${v?'checked':''}/> Visible</label><label><input id="edPinned" type="checkbox" ${pinned?'checked':''}/> Pin Left</label></div>`; editor.querySelector('#edAlias')?.addEventListener('input',e=>{ draft.aliases=draft.aliases||{}; draft.aliases[col]=e.target.value; saveDraft(); renderDemo(); }); editor.querySelector('#edVisible')?.addEventListener('change',e=>{ draft.visible=draft.visible||{}; draft.visible[col]=!!e.target.checked; saveDraft(); renderDemo(); buildColsList(col); }); editor.querySelector('#edPinned')?.addEventListener('change',e=>{ draft.pinned=draft.pinned||[]; const i=draft.pinned.indexOf(col); if(e.target.checked && i<0){ if(draft.pinned.length<3) draft.pinned.push(col);} if(!e.target.checked && i>=0){ draft.pinned.splice(i,1);} saveDraft(); renderDemo(); }); }
+
+  function saveDraft(){ try{ localStorage.setItem('master.state.draft', JSON.stringify(draft)); }catch{} }
+
+  // Wire settings controls
+  agedOn?.addEventListener('change', ()=>{ draft.agedOn = agedOn.value; saveDraft(); renderDemo(); });
+  aliasGlobal?.addEventListener('change', ()=>{ draft.aliasActive = !!aliasGlobal.checked; saveDraft(); renderDemo(); });
+  defView?.addEventListener('change', ()=>{ draft.view = defView.value || ''; saveDraft(); renderDemo(); });
+
+  // Config subtabs
+  const cfgTabs = root.querySelectorAll('[data-cfgtab]');
+  root.addEventListener('click', (e)=>{ const b=e.target.closest('[data-cfgtab]'); if(!b) return; cfgTabs.forEach(t=> t.classList.remove('is-active')); b.classList.add('is-active'); $('#cfgTablePanel').style.display = b.dataset.cfgtab==='cfg-table'?'block':'none'; $('#cfgColumnsPanel').style.display = b.dataset.cfgtab==='cfg-columns'?'block':'none'; });
+
+  publishBtn?.addEventListener('click', ()=>{ try{ localStorage.setItem('master.state.v1', JSON.stringify(draft)); showToast('Published to Master','success'); }catch{ showToast('Failed to publish','error'); } });
+
+  renderTableSettings(); buildColsList(); renderDemo();
+}
+
+// ------------------------- Collections: Master (Data Grid) ------------------
+function initMasterGrid(){
+  const panel = document.querySelector('[data-subtab-panel="col-master"]');
+  if(!panel) return;
+  let booted = false;
+  const boot = ()=>{ if(booted) return; booted = true; try{ setupMaster(panel); }catch(e){} };
+  document.addEventListener('subtab:changed', (e)=>{ if((e.detail?.id||'')==='col-master') boot(); });
+  if (!panel.classList.contains('is-hidden')) boot();
+}
+
+  function setupMaster(root){
+  const $ = s => root.querySelector(s);
+  const table = $('#masterTable');
+  const quick = $('#masterQuickFilters');
+  const search = $('#masterSearch');
+  const viewsSel = $('#masterView');
+  const colsBtn = $('#masterConfigureBtn');
+  const colsSide = document.getElementById('colsConfigSide');
+  const colsSideList = document.getElementById('colsSideList');
+  const colsSideEditor = document.getElementById('colsSideEditor');
+  const colsSwapBtn = document.getElementById('colsSwap');
+  const colsResetBtn = document.getElementById('colsReset');
+  const colsCloseBtn = document.getElementById('colsClose');
+  const saveBtn = $('#masterSaveView');
+  const saveAsBtn = $('#masterSaveViewAs');
+  const detailsToggle = $('#masterDetailsToggle');
+  const aliasGlobalToggle = $('#masterAliasGlobalToggle');
+  const defaultViewSel = $('#masterDefaultView');
+  const layout = $('#masterBody');
+  const detail = $('#masterDetail');
+  const mdTitle = $('#mdTitle');
+  const mdBody = $('#mdBody');
+
+  const STATE_KEY = 'master.state.v1';
+  const VIEWS_KEY = 'master.views.v1';
+  const EDITS_KEY = 'master.edits.v1';
+
+  let state = loadState();
+  let views = loadViews();
+  let edits = loadEdits();
+  let data = { headers:[], rows:[] };
+  let sort = state.sort || null; // {col, dir}
+
+  function loadState(){ try{ return JSON.parse(localStorage.getItem(STATE_KEY)||'{}'); }catch{ return {}; } }
+  function saveState(){ try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }catch{} }
+  function loadViews(){ try{ return JSON.parse(localStorage.getItem(VIEWS_KEY)||'[]'); }catch{ return []; } }
+  function saveViews(){ try{ localStorage.setItem(VIEWS_KEY, JSON.stringify(views)); }catch{} }
+  function loadEdits(){ try{ return JSON.parse(localStorage.getItem(EDITS_KEY)||'{}'); }catch{ return {}; } }
+  function saveEdits(){ try{ localStorage.setItem(EDITS_KEY, JSON.stringify(edits)); }catch{} }
+
+  function parseCSV(str){ const out=[]; let row=[]; let i=0; let cur=''; let q=false; while(i<str.length){ const ch=str[i]; if(q){ if(ch==='"' && str[i+1]==='"'){ cur+='"'; i+=2; continue; } if(ch==='"'){ q=false; i++; continue; } cur+=ch; i++; continue; } if(ch==='"'){ q=true; i++; continue; } if(ch===','){ row.push(cur); cur=''; i++; continue; } if(ch==='\r'){ i++; continue; } if(ch==='\n'){ row.push(cur); out.push(row); row=[]; cur=''; i++; continue; } cur+=ch; i++; } if(cur.length||row.length) { row.push(cur); out.push(row); } return out; }
+
+  async function loadCSV(){
+    try{
+      const res = await fetch('sampledata.csv'); if(!res.ok) throw new Error('csv');
+      const text = await res.text();
+      const rows = parseCSV(text);
+      const headers = (rows.shift()||[]).map(h=>h.trim());
+      data.headers = headers;
+      data.rows = rows;
+      initializeColumns(headers);
+      renderAll();
+    }catch(e){ table.innerHTML = '<thead><tr><th>Load Error</th></tr></thead><tbody><tr><td class="muted">Could not load sampledata.csv</td></tr></tbody>'; }
+  }
+
+  function initializeColumns(headers){
+    state.order = Array.isArray(state.order) && state.order.length ? state.order.filter(h=>headers.includes(h)) : headers.slice();
+    state.visible = state.visible || Object.fromEntries(headers.map(h=>[h,true]));
+    state.aliases = state.aliases || {};
+    state.types = state.types || {}; // Auto|Text|Number|Date|Currency
+    state.locked = state.locked || {}; // column -> bool
+    state.keys = state.keys || {}; // column -> bool
+    state.pinned = Array.isArray(state.pinned) ? state.pinned.filter(h=>headers.includes(h)).slice(0,3) : [];
+    state.filters = state.filters || {}; // column -> string
+    saveState();
+    renderViewsDropdown();
+  }
+
+  function renderViewsDropdown(){
+    const cur = state.view || '';
+    viewsSel.innerHTML = ['<option value="">— View —</option>'].concat(views.map(v=>`<option ${v.name===cur?'selected':''}>${v.name}</option>`)).join('');
+    // Default view select
+    const def = localStorage.getItem('master.defaultView') || '';
+    defaultViewSel.innerHTML = ['<option value="">— Default View —</option>'].concat(views.map(v=>`<option ${v.name===def?'selected':''}>${v.name}</option>`)).join('');
+  }
+
+  function currentColumns(){ return state.order.filter(h=>state.visible[h]); }
+
+  function headerCell(h){
+    const pinned = state.pinned.includes(h);
+    const width = (state.widths && state.widths[h]) ? `style=\"width:${state.widths[h]}px; min-width:${state.widths[h]}px\"` : '';
+    const label = (state.aliasActive && (state.aliases[h]||'').trim()) ? state.aliases[h].trim() : h;
+    return `<th data-col="${h}" draggable="true" class="${pinned?'pinned':''}" ${width}><div class="th-head"><span class="th-title" title="${h}">${label}</span><span class="col-resize" data-resize="${h}"></span></div></th>`;
+  }
+  function aliasCell(h){ const a=state.aliases[h]||''; return `<th><input data-alias="${h}" placeholder="Alias" value="${a}"/></th>`; }
+  function filterCell(h){ const f=state.filters[h]||''; return `<th><input data-filter="${h}" placeholder="Filter" value="${f}"/></th>`; }
+
+  function applyFilters(rows){
+    const q = (search?.value||'').toLowerCase();
+    const active = Object.entries(state.filters).filter(([,v])=>String(v||'').trim()!=='');
+    const quickOn = Object.entries(state.quick||{}).filter(([,cfg])=>cfg && cfg.on);
+    if(active.length===0 && !q && quickOn.length===0) return rows;
+    return rows.filter(r=>{
+      const rowStr = r.join(' ').toLowerCase();
+      if(q && !rowStr.includes(q)) return false;
+      for(const [col,val] of active){ const idx=data.headers.indexOf(col); if(idx<0) continue; const cell=String(r[idx]||''); if(!cell.toLowerCase().includes(String(val).toLowerCase())) return false; }
+      for(const [col,cfg] of quickOn){ const idx=data.headers.indexOf(col); if(idx<0) continue; const v=String(r[idx]||''); const sel = cfg.values||{}; if(Object.keys(sel).length && sel[v]===false) return false; }
+      return true;
+    });
+  }
+
+  function applySort(rows){
+    if(!sort) return rows;
+    const idx = data.headers.indexOf(sort.col);
+    if(idx<0) return rows;
+    const dir = sort.dir==='desc'?-1:1;
+    return rows.slice().sort((a,b)=>{ const va=a[idx]||''; const vb=b[idx]||''; const ta=state.types[sort.col]||'Auto'; const pa=parseVal(va,ta); const pb=parseVal(vb,ta); if(pa<pb) return -1*dir; if(pa>pb) return 1*dir; return 0; });
+  }
+  function parseVal(v, t){ if(t==='Number'||t==='Currency'){ const n=Number(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n } if(t==='Date'){ const d=new Date(v); return d.getTime()||0 } if(t==='Boolean'){ return (String(v).toLowerCase()==='true'||String(v).toLowerCase()==='yes'||String(v)==='1')?1:0 } return String(v).toLowerCase(); }
+
+  function renderTable(){
+    const cols = currentColumns();
+    const headRow = `<tr class="head-row">${cols.map(headerCell).join('')}</tr>`;
+    const thead = `<thead>${headRow}</thead>`;
+    const filtered = applyFilters(applySort(data.rows));
+    const colIdx = cols.map(c=> data.headers.indexOf(c));
+    const keyCol = Object.keys(state.keys).find(k=>state.keys[k]) || data.headers[0];
+    const body = filtered.map((r,i)=>{
+      const rowKey = r[data.headers.indexOf(keyCol)] || String(i);
+      return `<tr>${colIdx.map((ix,j)=>{
+        const h = cols[j];
+        let val = r[ix]||'';
+        if(edits[rowKey] && h in edits[rowKey]) val = edits[rowKey][h];
+        const pinned = state.pinned.includes(h);
+        const width = (state.widths && state.widths[h]) ? `style=\"width:${state.widths[h]}px; min-width:${state.widths[h]}px\"` : '';
+        return `<td data-col="${h}" data-rowkey="${rowKey}" class="${pinned?'pinned':''}" ${width}>${formatCell(val, state.types[h], state.formats?.[h])}</td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    table.innerHTML = thead + `<tbody>${body}</tbody>`;
+    wireTableInteractions();
+    computePinnedOffsets();
+  }
+
+  function formatCell(v, t, fmt){
+    t = t || 'Auto'; fmt = fmt || {};
+    if(t==='Boolean'){
+      const style = fmt.style||'truefalse';
+      const truthy = (String(v).toLowerCase()==='true'||String(v).toLowerCase()==='yes'||String(v)==='1');
+      if(style==='checkbox') return truthy? '☑︎' : '☐';
+      if(style==='yesno') return truthy? 'Yes' : 'No';
+      return truthy? 'True' : 'False';
+    }
+    if(t==='Currency'){
+      const code = fmt.currency || 'USD';
+      const d = typeof fmt.decimals==='number' ? fmt.decimals : 2;
+      const n = Number(String(v).replace(/[^0-9.\-]/g,''))||0;
+      try{ return new Intl.NumberFormat(undefined,{style:'currency',currency:code, minimumFractionDigits:d, maximumFractionDigits:d}).format(n);}catch{ return n.toFixed(d); }
+    }
+    if(t==='Number'){
+      const d = typeof fmt.decimals==='number' ? fmt.decimals : 0;
+      const g = (fmt.grouping!==false);
+      const n = Number(String(v).replace(/[^0-9.\-]/g,'')); if(isNaN(n)) return v;
+      try{ return new Intl.NumberFormat(undefined,{minimumFractionDigits:d, maximumFractionDigits:d, useGrouping:g}).format(n);}catch{ return n.toFixed(d); }
+    }
+    if(t==='Date'){
+      const d = new Date(v); if(isNaN(d)) return v;
+      const pad=(n)=> String(n).padStart(2,'0');
+      const y=d.getFullYear(), m=pad(d.getMonth()+1), dd=pad(d.getDate());
+      const pattern = fmt.pattern || 'YYYY-MM-DD';
+      if(pattern==='MM/DD/YYYY') return `${m}/${dd}/${y}`;
+      if(pattern==='DD-MM-YYYY') return `${dd}-${m}-${y}`;
+      return `${y}-${m}-${dd}`;
+    }
+    return v;
+  }
+
+  function renderQuickFilters(){
+    quick.innerHTML = '';
+    const statusCol = data.headers.find(h=>/status/i.test(h));
+    if(!statusCol) return;
+    const idx = data.headers.indexOf(statusCol);
+    const values = Array.from(new Set(data.rows.map(r=>r[idx]).filter(Boolean))).slice(0,6);
+    quick.innerHTML = values.map(v=>`<button class="tag" data-qf="${statusCol}" data-qv="${String(v).replace(/"/g,'&quot;')}">${v}</button>`).join('');
+  }
+
+  // Columns config sidebar helpers
+  function openColsSide(focusCol){ buildColsSide(focusCol); document.body.classList.add('config-open'); colsSide?.classList.remove('is-hidden'); }
+  function closeColsSide(){ document.body.classList.remove('config-open'); colsSide?.classList.add('is-hidden'); }
+  function buildColsSide(focusCol){
+    if(!colsSideList) return;
+    const cols = state.order.slice();
+    colsSideList.innerHTML = cols.map(h=>{
+      const badges = [`${state.visible[h]?'Visible':'Hidden'}`, state.pinned.includes(h)?'Pinned':''].filter(Boolean);
+      return `<div class="col-item${(h===focusCol)?' is-active':''}" data-colsel="${h}" draggable="true"><span class="label">${h}</span><div class="badges">${badges.map(b=>`<span class=\"badge\">${b}</span>`).join('')}</div></div>`;
+    }).join('');
+    let sel = focusCol || cols[0];
+    renderColEditor(sel);
+    colsSideList.querySelectorAll('[data-colsel]')?.forEach(item=>{
+      item.addEventListener('click', ()=>{ colsSideList.querySelector('.is-active')?.classList.remove('is-active'); item.classList.add('is-active'); renderColEditor(item.getAttribute('data-colsel')); });
+      item.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', item.getAttribute('data-colsel')); });
+      item.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+      item.addEventListener('drop', (e)=>{ e.preventDefault(); const src=item.getAttribute('data-colsel'); const dragged = e.dataTransfer.getData('text/plain'); if(!dragged||!src||dragged===src) return; const a=state.order.slice(); const from=a.indexOf(dragged); const to=a.indexOf(src); if(from<0||to<0) return; a.splice(to,0,a.splice(from,1)[0]); state.order=a; saveState(); renderTable(); buildColsSide(dragged); });
+    });
+  }
+  function renderColEditor(col){
+    if(!colsSideEditor) return;
+    if(!col){ colsSideEditor.innerHTML='<p class="muted">Select a column</p>'; return; }
+    const fmt = state.formats?.[col] || {};
+    const alias = state.aliases?.[col]||'';
+    const filter = state.filters?.[col]||'';
+    const type = state.types?.[col]||'Auto';
+    const locked = !!state.locked?.[col];
+    const isKey = !!state.keys?.[col];
+    const pinned = (state.pinned||[]).includes(col);
+    const width = Number((state.widths||{})[col]||160);
+    const quickCfg = state.quick?.[col] || { on:false, values:{} };
+    const sortDir = (state.sort && state.sort.col===col) ? state.sort.dir : 'none';
+    const i = data.headers.indexOf(col);
+    const vals = i>=0 ? Array.from(new Set(data.rows.map(r=> String(r[i]||'')))).slice(0,200) : [];
+    colsSideEditor.setAttribute('data-editing', col);
+    colsSideEditor.innerHTML = `
+      <div class="panel" style="padding:12px; display:grid; gap:10px">
+        <div class="section-title">Basics</div>
+        <div class="kv"><label>Alias</label><div class="val"><input id="ceAlias" value="${alias}"/></div></div>
+        <div class="kv"><label>Type</label><div class="val"><select id="ceType">
+          <optgroup label="Plain">
+            <option value="Text" ${type==='Text'?'selected':''}>Text (plain)</option>
+            <option value="Auto" ${type==='Auto'?'selected':''}>Auto (no format)</option>
+          </optgroup>
+          <optgroup label="Numbers">
+            <option value='{"t":"Number","decimals":0}'>Number (1,234)</option>
+            <option value='{"t":"Number","decimals":1}'>Number (1,234.5)</option>
+            <option value='{"t":"Number","decimals":2}'>Number (1,234.56)</option>
+            <option value='{"t":"Number","decimals":3}'>Number (1,234.567)</option>
+            <option value='{"t":"Currency","currency":"USD","decimals":2}'>Currency USD (1,234.56)</option>
+            <option value='{"t":"Currency","currency":"EUR","decimals":2}'>Currency EUR (1.234,56)</option>
+          </optgroup>
+          <optgroup label="Dates">
+            <option value='{"t":"Date","pattern":"YYYY-MM-DD"}'>Date (2025-09-01)</option>
+            <option value='{"t":"Date","pattern":"MM/DD/YYYY"}'>Date (09/01/2025)</option>
+            <option value='{"t":"Date","pattern":"DD-MM-YYYY"}'>Date (01-09-2025)</option>
+          </optgroup>
+          <optgroup label="Boolean">
+            <option value='{"t":"Boolean","style":"truefalse"}'>Boolean (True/False)</option>
+            <option value='{"t":"Boolean","style":"yesno"}'>Boolean (Yes/No)</option>
+            <option value='{"t":"Boolean","style":"checkbox"}'>Boolean (Checkbox)</option>
+          </optgroup>
+          <optgroup label="Dropdown">
+            <option value='{"t":"Dropdown"}'>Dropdown (set options…)</option>
+          </optgroup>
+          <optgroup label="Formula">
+            <option value='{"t":"Formula","expr":"DAYS_PAST_DUE(''Due Date'')"}'>Formula: Days Past Due</option>
+            <option value='{"t":"Formula","expr":"AGING_BUCKET(''Due Date'')"}'>Formula: Aging Bucket</option>
+            <option value='{"t":"Formula","expr":""}'>Formula: Custom…</option>
+          </optgroup>
+        </select></div></div>
+        <div id="ceFmt"></div>
+        <div class="section-title">Controls</div>
+        <label><input id="ceVisible" type="checkbox" ${state.visible[col]?'checked':''}/> Visible</label>
+        <label><input id="cePinned" type="checkbox" ${pinned?'checked':''}/> Pin Left</label>
+        <label><input id="ceLocked" type="checkbox" ${locked?'checked':''}/> Lock edits</label>
+        <label><input id="ceKey" type="checkbox" ${isKey?'checked':''}/> Key column</label>
+        <label><input id="ceImportApproval" type="checkbox" ${state.importApproval?'checked':''}/> Import Approval</label>
+        <label><input id="ceAudit" type="checkbox" ${state.audit?.[col]?'checked':''}/> Auditable</label>
+        <label><input id="ceQuick" type="checkbox" ${quickCfg.on?'checked':''}/> Quick filter</label>
+        ${quickCfg.on ? `<div class=\"panel\" style=\"padding:10px\"><div class=\"panel-header\"><h3>Quick Filter Values</h3></div>
+          <div style=\"display:flex; gap:8px; margin-bottom:4px\"><button class=\"mini-btn\" id=\"ceQAll\">All</button><button class=\"mini-btn\" id=\"ceQNone\">None</button><button class=\"mini-btn\" id=\"ceQInv\">Invert</button></div>
+          ${vals.map(v=>`<label style=\\"display:flex; gap:6px; align-items:center; padding:2px 4px\\"><input type=\\"checkbox\\" data-qv value=\\"${v.replace(/\\\\/g,'\\\\\\\\').replace(/\"/g,'&quot;')}\\" ${quickCfg.values && quickCfg.values[v]===false?'':'checked'}/> <span title=\\"${v}\\">${v||'—'}</span></label>`).join('')}
+        </div>` : ''}
+      </div>`;
+    const fmtHost = colsSideEditor.querySelector('#ceFmt');
+    fmtHost.innerHTML = '';
+    // Wire inputs
+    colsSideEditor.querySelector('#ceAlias')?.addEventListener('input', e=>{ state.aliases[col]=e.target.value; saveState(); renderTable(); renderDetail(); });
+    colsSideEditor.querySelector('#ceType')?.addEventListener('change', e=>{
+      const raw = e.target.value;
+      try{
+        let cfg = {};
+        try { cfg = JSON.parse(raw); } catch { cfg = { t: raw }; }
+        const t = cfg.t || cfg.type || raw;
+        state.types[col] = t;
+        state.formats[col] = state.formats[col] || {};
+        if(t==='Number') state.formats[col].decimals = typeof cfg.decimals==='number'?cfg.decimals: (state.formats[col].decimals||0);
+        if(t==='Currency'){ state.formats[col].currency = cfg.currency || state.formats[col].currency || 'USD'; state.formats[col].decimals = typeof cfg.decimals==='number'?cfg.decimals:2; }
+        if(t==='Date') state.formats[col].pattern = cfg.pattern || state.formats[col].pattern || 'YYYY-MM-DD';
+        if(t==='Boolean') state.formats[col].style = cfg.style || state.formats[col].style || 'truefalse';
+        if(t==='Dropdown') state.formats[col].options = state.formats[col].options || 'Option A,Option B';
+        if(t==='Formula') state.formats[col].expr = cfg.expr || state.formats[col].expr || '';
+      }catch{}
+      saveState(); renderTable(); renderColEditor(col);
+    });
+    colsSideEditor.querySelector('#ceVisible')?.addEventListener('change', e=>{ state.visible[col]=e.target.checked; saveState(); renderTable(); buildColsSide(col); });
+    colsSideEditor.querySelector('#cePinned')?.addEventListener('change', e=>{ const i=state.pinned.indexOf(col); if(e.target.checked && i<0){ if(state.pinned.length<3) state.pinned.push(col);} if(!e.target.checked && i>=0){ state.pinned.splice(i,1);} saveState(); renderTable(); buildColsSide(col); });
+    colsSideEditor.querySelector('#ceLocked')?.addEventListener('change', e=>{ state.locked[col]=e.target.checked; saveState(); });
+    colsSideEditor.querySelector('#ceKey')?.addEventListener('change', e=>{ Object.keys(state.keys).forEach(k=> state.keys[k]=false); state.keys[col]=e.target.checked; saveState(); renderTable(); });
+    colsSideEditor.querySelector('#ceAudit')?.addEventListener('change', e=>{ state.audit[col]=e.target.checked; saveState(); });
+    colsSideEditor.querySelector('#ceImportApproval')?.addEventListener('change', e=>{ state.importApproval = !!e.target.checked; saveState(); });
+    colsSideEditor.querySelector('#ceQuick')?.addEventListener('change', e=>{ state.quick[col]=state.quick[col]||{on:false, values:{}}; state.quick[col].on = e.target.checked; saveState(); renderColEditor(col); renderTable(); });
+    // For Dropdown and Formula, render additional fields
+    if(state.types[col]==='Dropdown'){
+      fmtHost.innerHTML = `<div class="kv"><label>Options</label><div class="val"><input id="ceOptions" placeholder="Comma-separated" value="${state.formats[col].options||'Option A,Option B'}"/></div></div>`;
+      fmtHost.querySelector('#ceOptions')?.addEventListener('input', e=>{ state.formats[col].options = e.target.value; saveState(); });
+    } else if(state.types[col]==='Formula'){
+      fmtHost.innerHTML = `<div class="kv"><label>Expression</label><div class="val"><input id="ceExpr" placeholder="e.g., DAYS_PAST_DUE('Due Date')" value="${state.formats[col].expr||''}"/></div></div>`;
+      fmtHost.querySelector('#ceExpr')?.addEventListener('input', e=>{ state.formats[col].expr = e.target.value; saveState(); renderTable(); });
+    }
+    colsSideEditor.querySelector('#ceQAll')?.addEventListener('click', ()=>{ state.quick[col]=state.quick[col]||{on:true, values:{}}; state.quick[col].values={}; saveState(); renderTable(); renderColEditor(col); });
+    colsSideEditor.querySelector('#ceQNone')?.addEventListener('click', ()=>{ const cfg=state.quick[col]=state.quick[col]||{on:true, values:{}}; cfg.values=Object.fromEntries(vals.map(v=>[v,false])); saveState(); renderTable(); renderColEditor(col); });
+    colsSideEditor.querySelector('#ceQInv')?.addEventListener('click', ()=>{ const cfg=state.quick[col]=state.quick[col]||{on:true, values:{}}; const cur=cfg.values||{}; cfg.values=Object.fromEntries(vals.map(v=>[v, cur[v]===false ? true : false])); saveState(); renderTable(); renderColEditor(col); });
+    colsSideEditor.querySelectorAll('input[data-qv]')?.forEach(cb=> cb.addEventListener('change', ()=>{ const cfg=state.quick[col]=state.quick[col]||{on:true, values:{}}; cfg.values = cfg.values || {}; cfg.values[cb.value] = cb.checked ? true : false; saveState(); renderTable(); }));
+    // Move selected via keyboard shortcuts in sidebar (Alt+Up/Down)
+    document.addEventListener('keydown', (ev)=>{
+      if(!document.body.classList.contains('config-open')) return;
+      if(!(ev.altKey && (ev.key==='ArrowUp' || ev.key==='ArrowDown'))) return;
+      const cur = colsSideEditor.getAttribute('data-editing');
+      const i = state.order.indexOf(cur); if(i<0) return;
+      const delta = ev.key==='ArrowUp' ? -1 : 1;
+      const j=i+delta; if(j<0||j>=state.order.length) return;
+      const a=state.order; a.splice(j,0,a.splice(i,1)[0]); saveState(); renderTable(); buildColsSide(cur);
+    });
+  }
+
+  function renderAll(){ renderTable(); renderQuickFilters(); renderViewsDropdown(); exposeMasterSource(); renderDetail(); }
+  // Apply default view if set and no specific view is active
+  (function maybeApplyDefault(){
+    try{
+      const def = localStorage.getItem('master.defaultView') || '';
+      if(def && !state.view){ const v = views.find(v=>v.name===def); if(v){ state = JSON.parse(JSON.stringify(v.state)); state.view = def; saveState(); }}
+    }catch{}
+  })();
+
+  // Interactions
+  function wireTableInteractions(){
+    // Column menu removed; use Columns modal instead
+    // Drag reorder
+    table.querySelectorAll('thead th[draggable="true"]').forEach(th=>{
+      th.addEventListener('dragstart', (e)=>{ e.dataTransfer.setData('text/plain', th.getAttribute('data-col')); });
+      th.addEventListener('dragover', (e)=>{ e.preventDefault(); });
+      th.addEventListener('drop', (e)=>{ e.preventDefault(); const src = e.dataTransfer.getData('text/plain'); const dst = th.getAttribute('data-col'); if(!src||!dst||src===dst) return; const o=state.order.filter(h=>state.visible[h]); const all=state.order.slice(); const from=all.indexOf(src); const to=all.indexOf(dst); if(from<0||to<0) return; all.splice(to,0, all.splice(from,1)[0]); state.order = all; saveState(); renderTable(); });
+    });
+    // No inline filter dropdowns in headers
+    // Column resizing
+    table.querySelectorAll('.col-resize')?.forEach(h=>{
+      h.addEventListener('mousedown', (e)=>{
+        e.preventDefault(); const col=h.getAttribute('data-resize'); const th=h.closest('th'); if(!col||!th) return;
+        const startX = e.clientX; const startW = th.getBoundingClientRect().width;
+        const onMove = (ev)=>{ const dx=ev.clientX-startX; const w=Math.max(60, Math.round(startW+dx)); state.widths=state.widths||{}; state.widths[col]=w; th.style.width=w+'px'; th.style.minWidth=w+'px'; table.querySelectorAll(`td[data-col="${CSS.escape(col)}"]`).forEach(td=>{ td.style.width=w+'px'; td.style.minWidth=w+'px'; }); computePinnedOffsets(); };
+        const onUp = ()=>{ saveState(); window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+        window.addEventListener('mousemove', onMove); window.addEventListener('mouseup', onUp);
+      });
+    });
+    // Inline edit + selection
+    table.querySelectorAll('tbody td').forEach(td=>{
+      td.addEventListener('dblclick', ()=> startEdit(td));
+      td.addEventListener('click', ()=> selectRow(td.closest('tr')));
+    });
+  }
+
+  // No openFilterMenu: header filters are removed
+
+  let selectedKey = null;
+  function selectRow(tr){ if(!tr) return; const key = tr.querySelector('td')?.getAttribute('data-rowkey'); if(!key) return; selectedKey = key; renderDetail(); }
+  function renderDetail(){
+    if(!detail || !mdBody) return;
+    const show = detailsToggle?.checked;
+    layout?.classList.toggle('show-detail', !!show);
+    detail?.classList.toggle('is-hidden', !show);
+    if(!show){ return; }
+    const cols = currentColumns();
+    mdBody.innerHTML = '';
+    if(!selectedKey){ mdTitle.textContent = 'Select a row'; return; }
+    const keyCol = Object.keys(state.keys).find(k=>state.keys[k]) || data.headers[0];
+    const idxKey = data.headers.indexOf(keyCol);
+    const row = data.rows.find((r,i)=>{ const k = r[idxKey] || String(i); return k===selectedKey; });
+    if(!row){ mdTitle.textContent = 'Select a row'; return; }
+    mdTitle.textContent = `Row: ${selectedKey}`;
+    const aliasActive = !!state.aliasActive; const alias = state.aliases||{}; const fmt = state.formats||{};
+    mdBody.innerHTML = cols.map(h=>{ const ix=data.headers.indexOf(h); let v=(edits[selectedKey]&&h in edits[selectedKey])?edits[selectedKey][h]:(row[ix]||''); const label=aliasActive&&(alias[h]||'').trim()?alias[h].trim():h; return `<div class="kv"><label>${label}</label><div class="val">${formatCell(v, state.types[h], fmt[h])}</div></div>`; }).join('');
+  }
+
+  function startEdit(td){
+    const col = td.getAttribute('data-col'); if(state.locked[col]) return;
+    if(td.querySelector('input')) return;
+    td.classList.add('cell-editing');
+    const old = td.textContent;
+    const inp = document.createElement('input'); inp.type='text'; inp.value = old; inp.style.width='100%';
+    td.innerHTML=''; td.appendChild(inp); inp.focus(); inp.select();
+    const finish = (commit)=>{ const val = commit ? inp.value : old; const rowKey = td.getAttribute('data-rowkey'); edits[rowKey]=edits[rowKey]||{}; edits[rowKey][col] = val; saveEdits(); td.classList.remove('cell-editing'); td.innerHTML = formatCell(val, state.types[col]); };
+    inp.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ finish(true);} if(e.key==='Escape'){ finish(false);} });
+    inp.addEventListener('blur', ()=> finish(true));
+  }
+
+  // Column menu removed; all configuration is handled in the Columns modal
+
+  // Expose Master as source for other tabs
+  function exposeMasterSource(){
+    try{
+      window.MasterSource = {
+        getAliases(){ return { map: state.aliases||{}, active: !!state.aliasActive }; },
+        getState(){ return state; },
+        getDataset(viewName){
+          const s = (viewName && (views.find(v=>v.name===viewName)?.state)) ? views.find(v=>v.name===viewName).state : state;
+          const headers = data.headers.slice();
+          const keyCol = Object.keys(s.keys||{}).find(k=>s.keys[k]) || headers[0];
+          const rows = data.rows.map((r,i)=>{
+            const rowKey = r[headers.indexOf(keyCol)] || String(i);
+            const e = edits[rowKey]||{}; return headers.map((h,ix)=> (h in e) ? e[h] : r[ix]);
+          });
+          const aliasMap = s.aliases || {};
+          const aliasActive = !!s.aliasActive;
+          const outHeaders = aliasActive ? headers.map(h=> (aliasMap[h] && aliasMap[h].trim()) ? aliasMap[h].trim() : h) : headers.slice();
+          return { headers: outHeaders, rows, aliasMap, aliasActive };
+        }
+      };
+    }catch{}
+  }
+
+  function computePinnedOffsets(){
+    // Compute left offsets for pinned columns (up to 3)
+    const cols = currentColumns();
+    const pinnedCols = state.pinned.filter(h=>state.visible[h]);
+    if(pinnedCols.length===0) return;
+    const ths = table.querySelectorAll('thead th');
+    const leftMap = {};
+    let left = 0;
+    cols.forEach(h=>{
+      const isPinned = pinnedCols.includes(h);
+      const th = Array.from(ths).find(t=>t.getAttribute('data-col')===h);
+      const width = th ? th.getBoundingClientRect().width : 0;
+      if(isPinned){ leftMap[h] = left; left += width; }
+    });
+    const allCells = table.querySelectorAll('[data-col]');
+    allCells.forEach(c=>{ const h=c.getAttribute('data-col'); if(h in leftMap){ c.classList.add('pinned'); c.style.left = leftMap[h]+'px'; } else { c.classList.remove('pinned'); c.style.left=''; } });
+  }
+
+  // Toolbar and overlay
+  search?.addEventListener('input', ()=> renderTable());
+  quick?.addEventListener('click', (e)=>{ const b=e.target.closest('[data-qf]'); if(!b) return; const col=b.getAttribute('data-qf'); const val=b.getAttribute('data-qv'); state.filters[col]=val; saveState(); renderTable(); });
+  colsBtn?.addEventListener('click', ()=>{ const btn=document.querySelector('.subtab[data-subtab="col-config"]'); if(btn) btn.click(); });
+  colsCloseBtn?.addEventListener('click', ()=> closeColsSide());
+  colsSwapBtn?.addEventListener('click', ()=>{ const c=document.getElementById('colsConfigContent'); if(c){ const dir=getComputedStyle(c).flexDirection; c.style.flexDirection = dir==='column' ? 'column-reverse' : 'column'; }});
+  colsResetBtn?.addEventListener('click', ()=>{ if(!confirm('Reset columns to defaults?')) return; initializeColumns(data.headers.slice()); renderAll(); });
+  defaultViewSel?.addEventListener('change', ()=>{ const v=defaultViewSel.value; localStorage.setItem('master.defaultView', v||''); });
+  aliasGlobalToggle?.addEventListener('change', ()=>{ state.aliasActive = !!aliasGlobalToggle.checked; saveState(); renderAll(); });
+  detailsToggle?.addEventListener('change', ()=> renderDetail());
+
+  viewsSel?.addEventListener('change', ()=>{ const name = viewsSel.value; const v = views.find(v=>v.name===name); if(!v){ state.view=''; saveState(); renderAll(); return; } state = JSON.parse(JSON.stringify(v.state)); state.view = name; saveState(); renderAll(); });
+  saveBtn?.addEventListener('click', ()=> saveView(false));
+  saveAsBtn?.addEventListener('click', ()=> saveView(true));
+
+  function saveView(forcePrompt){
+    let name = state.view || '';
+    if(!name || forcePrompt){ name = prompt('Save view as:', name||'My View') || ''; }
+    if(!name) return;
+    const sn = JSON.parse(JSON.stringify(state)); delete sn.view;
+    const i = views.findIndex(v=>v.name===name);
+    if(i>=0){ views[i].state = sn; } else { views.push({name, state: sn}); }
+    state.view = name; saveViews(); saveState(); renderViewsDropdown(); showToast('View saved','success');
+  }
+
+  window.addEventListener('resize', ()=> computePinnedOffsets());
+
+  loadCSV();
+}
+
+function setupArTimeline(root){
+  const $  = s => root.querySelector(s);
+  const $$ = s => root.querySelectorAll(s);
+  const esc = s => String(s||'').replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+  const money = n => Number(n||0).toLocaleString(undefined,{style:'currency',currency:'USD'});
+  const nowIso = ()=> new Date().toISOString().slice(0,16).replace('T',' ');
+  const stripTime = (d)=>{ const x=new Date(d); x.setHours(0,0,0,0); return x };
+  const daysBetween=(a,b)=>{ const ms=86400000; return Math.floor((stripTime(a)-stripTime(b))/ms) };
+  const relTime=(iso)=>{ try{ const then=new Date(iso); const diff=(Date.now()-then.getTime())/1000; if(diff<60) return `${Math.floor(diff)}s ago`; if(diff<3600) return `${Math.floor(diff/60)}m ago`; if(diff<86400) return `${Math.floor(diff/3600)}h ago`; return then.toLocaleString(); }catch{ return iso } };
+  const highlight=(txt)=> esc(txt).replace(/(^|\s)([@#][\w-]{2,})/g, (m,sp,tok)=> `${sp}<span class="tok">${tok}</span>`);
+
+  const COLLECTORS = ["Sam Diaz","Priya Kumar","Lee Brown","Mina Park","Jordan Patel","Alex Morgan"];
+  const STATUSES = ['Pending Contact','Contacted','Promised Payment','Overdue','Escalated','Paid'];
+  const SLA_HOURS = 4;
+  let currentId=null, tlFilter='All';
+
+  let invoices = [];
+  // Data loader: prefer MasterSource dataset; fallback to CSV
+  (async function loadCsv(){
+    try{
+      let rows = [];
+      let head = [];
+      if(window.MasterSource && typeof window.MasterSource.getDataset==='function'){
+        const ds = window.MasterSource.getDataset();
+        head = (ds.headers||[]).map(h=> String(h).trim());
+        rows = ds.rows || [];
+      } else {
+        const res = await fetch('sampledata.csv'); if(!res.ok) throw new Error('csv');
+        const text = await res.text();
+        const all = parseCSV(text);
+        head = (all.shift()||[]).map(h=> String(h).trim());
+        rows = all;
+      }
+      const col = Object.fromEntries(head.map((h,i)=>[h, i]));
+      // Helper: resolve index by original name or alias
+      const idxOf = (orig)=>{
+        if(orig in col) return col[orig];
+        try{
+          const a = window.MasterSource?.getAliases?.().map?.[orig];
+          const active = !!window.MasterSource?.getAliases?.().active;
+          if(active && a){ const j=head.indexOf(a); if(j>=0) return j; }
+        }catch{}
+        return -1;
+      };
+      invoices = rows.slice(0,200).map(r=>({
+        id: r[idxOf('AR Ref Nbr')] || r[0] || 'INV',
+        account: r[idxOf('Customer Name')] || 'Customer',
+        amount: Number(String(r[idxOf('Open Balance')]||r[idxOf('Amount')]||'0').replace(/[,\s]/g,''))||0,
+        due: r[idxOf('Due Date')] || '',
+        status: r[idxOf('Status')] || 'Pending Contact',
+        assigned: r[idxOf('Sales Rep')] || COLLECTORS[Math.floor(Math.random()*COLLECTORS.length)],
+        expected: r[idxOf('Date Payment Received')] || '',
+        notes: [ {t:'System', k:`Imported from CSV (${r[idxOf('AR Doc Type')]||'Invoice'})`, ts: nowIso()} ]
+      })).filter(inv=>inv.id && inv.account);
+    }catch{
+      // fallback demo data
+      invoices = [
+        {id:"INV-1001", account:"Ardent Robotics", amount:9200, due:"2025-08-20", status:"Pending Contact", assigned:"Sam Diaz", expected:"2025-09-09", notes:[{t:"System",k:"Invoice synced from ERP", ts:"2025-07-22 08:31"}]},
+      ];
+    }
+    renderRows(); renderRollups(); renderFollowups(); if(invoices[0]) openDrawer(invoices[0].id);
+  })();
+
+  function parseCSV(str){
+    const out=[]; let row=[]; let i=0; let cur=''; let q=false; while(i<str.length){ const ch=str[i]; if(q){ if(ch==='"' && str[i+1]==='"'){ cur+='"'; i+=2; continue; } if(ch==='"'){ q=false; i++; continue; } cur+=ch; i++; continue; } if(ch==='"'){ q=true; i++; continue; } if(ch===','){ row.push(cur); cur=''; i++; continue; } if(ch==='\r'){ i++; continue; } if(ch==='\n'){ row.push(cur); out.push(row); row=[]; cur=''; i++; continue; } cur+=ch; i++; } if(cur.length||row.length) { row.push(cur); out.push(row); } return out; }
+
+  const rowsEl = $('#arRows');
+  const pill = (status)=>{
+    const cls = status==="Pending Contact"?"ar-s-pending":status==="Contacted"?"ar-s-contacted":status==="Promised Payment"?"ar-s-promised":status==="Overdue"?"ar-s-overdue":status==="Escalated"?"ar-s-escalated":"ar-s-paid";
+    return `<span class="ar-pill ${cls}">${status}</span>`;
+  };
+  const slaRemaining=(inv)=>{ if(inv.status!=='Escalated') return null; const start=inv.escalatedAt?new Date(inv.escalatedAt):new Date(); const deadline = new Date(start.getTime()+SLA_HOURS*3600*1000); return deadline - new Date(); };
+  const fmtDur=(ms)=>{ if(ms<=0) return 'BREACHED'; const s=Math.floor(ms/1000); const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h ${m}m`; };
+
+  function renderRows(){
+    const q = ($('#arSearch')?.value||'').toLowerCase();
+    const f = $('#arFilter')?.value||'All Statuses';
+    const list = invoices.filter(inv=>{
+      const okF = (f==='All Statuses' || inv.status===f);
+      const okQ = [inv.id,inv.account,inv.assigned,inv.status].join(' ').toLowerCase().includes(q);
+      return okF && okQ;
+    });
+    rowsEl.innerHTML = list.map(inv=>{
+      const sla = slaRemaining(inv);
+      const initials = (inv.assigned||'').split(' ').map(p=>p[0]).join('').slice(0,2);
+      return `<tr data-id="${inv.id}">
+        <td>${inv.id}</td>
+        <td>${esc(inv.account)}</td>
+        <td>${money(inv.amount)}</td>
+        <td>${inv.due||''}</td>
+        <td>${pill(inv.status)}</td>
+        <td>${inv.expected || '<span class="ar-evt-meta">—</span>'}</td>
+        <td><span class="ar-ava" title="${esc(inv.assigned)}">${initials}</span> ${esc(inv.assigned)}</td>
+        <td>${inv.status==='Escalated' ? `<span class="ar-sla">${fmtDur(sla)}</span>` : ''}</td>
+      </tr>`;
+    }).join('');
+  }
+  rowsEl?.addEventListener('click', e=>{ const tr=e.target.closest('tr'); if(tr){ openDrawer(tr.dataset.id); }});
+
+  function computeRollups(){
+    const buckets = {"Current":0,"1-30":0,"31-60":0,"61-90":0,">90":0};
+    invoices.forEach(inv=>{
+      if(inv.status!=="Paid"){
+        const diff = daysBetween(new Date(), new Date(inv.due||new Date()));
+        let b="Current"; if(diff>0) b="Current"; else if(diff>=-30) b="1-30"; else if(diff>=-60) b="31-60"; else if(diff>=-90) b="61-90"; else b=">90";
+        buckets[b]+=Number(inv.amount)||0;
+      }
+    });
+    return buckets;
+  }
+  function renderRollups(){ const b=computeRollups(); const host=$('#arRollups'); if(!host) return; host.innerHTML = `
+    <div class="ar-tile"><h4>Current</h4><strong>${money(b["Current"])}</strong></div>
+    <div class="ar-tile"><h4>1–30</h4><strong>${money(b["1-30"])}</strong></div>
+    <div class="ar-tile"><h4>31–60</h4><strong>${money(b["31-60"])}</strong></div>
+    <div class="ar-tile"><h4>61–90</h4><strong>${money(b["61-90"])}</strong></div>
+    <div class="ar-tile"><h4>>90</h4><strong>${money(b[">90"])}</strong></div>`; }
+
+  const simFollowBox = $('#arFollow');
+  function renderFollowups(){
+    if(!simFollowBox) return;
+    const list = invoices.filter(inv => inv.expected && inv.status!=='Paid' && stripTime(new Date(inv.expected)) < stripTime(new Date()));
+    if(!list.length){ simFollowBox.innerHTML = `<div class="ar-fitem"><span class="ar-evt-meta">No follow-ups needed right now</span></div>`; return; }
+    simFollowBox.innerHTML = list.map(inv => {
+      const initials = (inv.assigned||'').split(' ').map(p=>p[0]).join('').slice(0,2);
+      return `<div class="ar-fitem">
+        <div><strong>${esc(inv.account)}</strong> <span class="ar-tag" style="margin-left:6px">${inv.id}</span><div class="ar-evt-meta">Expected ${inv.expected}</div></div>
+        <div>
+          <button class="ar-btn" data-fu="call" data-id="${inv.id}">Call</button>
+          <button class="ar-btn" data-fu="email" data-id="${inv.id}">Email</button>
+          <button class="ar-btn primary" data-fu="log" data-id="${inv.id}">Log Follow-up</button>
+        </div>
+      </div>`; }).join('');
+  }
+  simFollowBox?.addEventListener('click', (e)=>{
+    const id=e.target.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return;
+    if(e.target.dataset.fu==='log'){ inv.notes=inv.notes||[]; inv.notes.push({t:'Follow-up', k:`Follow-up performed on expected ${inv.expected}`, ts:nowIso(), author: inv.assigned}); renderFollowups(); if(currentId===id) renderTimeline(inv); }
+  });
+
+  function openDrawer(id){
+    const inv = invoices.find(i=>i.id===id); if(!inv) return; currentId=id;
+    $('#dTitle').textContent = inv.account; $('#dId').textContent = inv.id; $('#dAmt').textContent = money(inv.amount); $('#dDue').textContent = inv.due||'';
+    $('#dAssigned').innerHTML = COLLECTORS.map(n=>`<option ${n===inv.assigned?'selected':''}>${n}</option>`).join('');
+    $('#dStatus').innerHTML   = STATUSES.map(s=>`<option ${s===inv.status?'selected':''}>${s}</option>`).join('');
+    $('#dExpected').value     = inv.expected || '';
+    $('#dEsc').checked        = inv.status==='Escalated';
+    const badge = $('#dBadge'); badge.textContent = `Status: ${inv.status}`;
+    const slaEl = $('#dSla'); const sla = slaRemaining(inv); if(inv.status==='Escalated'){ slaEl.style.display='inline-flex'; slaEl.textContent = fmtDur(sla); } else { slaEl.style.display='none'; slaEl.textContent=''; }
+    renderTimeline(inv);
+  }
+  $('#dAssigned')?.addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.assigned=e.target.value; renderRows(); } });
+  $('#dStatus')?.addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ const prev=inv.status; inv.status=e.target.value; if(inv.status==='Escalated' && !inv.escalatedAt) inv.escalatedAt = nowIso(); if(inv.status==='Paid' && prev!=='Paid'){ inv.expected=''; inv.notes=inv.notes||[]; inv.notes.push({t:'System', k:'Marked as Paid', ts: nowIso(), author: inv.assigned}); } renderRows(); renderFollowups(); openDrawer(inv.id); } });
+  $('#dExpected')?.addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.expected=e.target.value; renderRows(); renderFollowups(); } });
+  $('#dEsc')?.addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.status = e.target.checked? 'Escalated':'Contacted'; if(e.target.checked) inv.escalatedAt = nowIso(); renderRows(); openDrawer(inv.id); } });
+
+  document.addEventListener('keydown', (e)=>{
+    const chip = e.target.closest('#ar-block .tag.add');
+    if(!chip) return; if(e.key==='Enter'){ e.preventDefault(); const t=chip.textContent.trim(); if(!t) return; const span=document.createElement('span'); span.className='tag'; span.textContent=t; chip.before(span); chip.textContent=''; }
+  });
+
+  const seg = root.querySelector('.ar-seg');
+  seg?.addEventListener('click', (e)=>{ const btn=e.target.closest('button[data-filter]'); if(!btn) return; seg.querySelector('.active')?.classList.remove('active'); btn.classList.add('active'); tlFilter=btn.dataset.filter; if(currentId){ const inv=invoices.find(i=>i.id===currentId); if(inv) renderTimeline(inv); } });
+  function renderTimeline(inv){
+    const wrap = $('#dTimeline'); const types = (tlFilter!=='All')?[tlFilter]:null; const byDay={};
+    (inv.notes||[]).forEach(n=>{ if(types && !types.includes(n.t)) return; const day=(n.ts||'').slice(0,10); (byDay[day]=byDay[day]||[]).push(n); });
+    const days = Object.keys(byDay).sort((a,b)=> a<b?1:-1);
+    if(!days.length){ wrap.innerHTML = `<div class="ar-tag">No activity for this filter</div>`; return; }
+    wrap.innerHTML = days.map(d=>{
+      const pretty = new Date(d+"T00:00").toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+      const rows = byDay[d].map(n=>{
+        const icon = n.t==='Call'?'📞': n.t==='Email'?'✉️': n.t==='Escalation'?'⚠️': n.t==='Follow-up'?'🔁':'📝';
+        const who = n.author || (invoices.find(i=>i.id===currentId)?.assigned) || 'Collector';
+        const initials = (who||'C').split(' ').map(p=>p[0]).join('').slice(0,2);
+        const body = highlight(n.k||'');
+        return `<div class="ar-evt">
+          <div class="ar-glyph" aria-hidden="true">${icon}</div>
+          <div class="ar-evtcard">
+            <div class="ar-evt-top">
+              <div class="ar-evt-meta"><span><span class="ar-ava" title="${esc(who)}">${initials}</span> ${esc(who)}</span><span>${relTime(n.ts||nowIso())}</span>${n.outcome?`<span class=\"ar-tag\">${esc(n.outcome)}</span>`:''}</div>
+              ${n.flag?`<span class="ar-tag">${esc(n.flag)}</span>`:''}
+            </div>
+            <div class="ar-evt-body">${body.length>220 ? body.slice(0,220)+`<span class=\"more\" data-more>… More</span>` : body}</div>
+          </div>
+        </div>`; }).join('');
+      return `<div class="ar-day">${pretty}</div>` + rows;
+    }).join('');
+    // Expand/Collapse
+    wrap.querySelectorAll('[data-more]')?.forEach(m=> m.addEventListener('click', (e)=>{ const p=e.target.closest('.ar-evtcard').querySelector('.ar-evt-body'); const full=(inv.notes||[]).find(n=>highlight(n.k||'').startsWith(p.textContent.replace('… More','')))?.k || ''; p.innerHTML = highlight(full) + ' <span class="more" data-less>Show less</span>'; }));
+    wrap.querySelectorAll('[data-less]')?.forEach(m=> m.addEventListener('click', ()=> renderTimeline(inv)));
+  }
+
+  const MAX=500; const ta=$('#noteText'); const ctr=$('#noteCount'); const addBtn = root.querySelector('#noteAdd');
+  ta?.addEventListener('input', ()=>{ const v=ta.value; if(ctr) ctr.textContent = `${v.length} / ${MAX}`; if(v.length>MAX){ ta.value=v.slice(0,MAX); if(ctr) ctr.textContent = `${MAX} / ${MAX}`; } if(addBtn) addBtn.disabled = v.trim().length===0; });
+  addBtn?.addEventListener('click', ()=> addNote());
+  root.querySelectorAll('[data-type]')?.forEach(b=> b.addEventListener('click', ()=> addNote(b.dataset.type)) );
+  ta?.addEventListener('keydown', e=>{ if((e.key==='Enter') && (e.metaKey||e.ctrlKey)){ e.preventDefault(); addNote(); } });
+  function addNote(kind){ const inv=invoices.find(i=>i.id===currentId); if(!inv) return; const txt=ta.value.trim(); if(!txt && !kind) return; inv.notes=inv.notes||[]; inv.notes.push({t: kind||'Note', k: txt || (kind+' logged'), ts: nowIso(), author: inv.assigned}); ta.value=''; ta.dispatchEvent(new Event('input')); renderTimeline(inv); renderFollowups(); showToast('Note added','success'); }
+
+  root.querySelector('.ar-quick')?.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-set-exp]'); if(!b) return;
+    const inv=invoices.find(i=>i.id===currentId); if(!inv) return; const k=b.getAttribute('data-set-exp'); const d=new Date(); if(k==='1d') d.setDate(d.getDate()+1); else if(k==='3d') d.setDate(d.getDate()+3); else if(k==='1w') d.setDate(d.getDate()+7); const iso=d.toISOString().slice(0,10); const inp=root.querySelector('#dExpected'); if(inp){ inp.value=iso; inv.expected=iso; renderFollowups(); renderRows(); showToast(`Expected set to ${iso}`,'success'); }
+  });
 }
 
 // Mirror the dashboard search input with the topbar global search
@@ -1186,6 +2709,592 @@ function initCashflowSearch(){
   topSearch.addEventListener('input', sync);
 }
 
+// ------------------------------- Admin Pages -------------------------------
+function initAdmin(){
+  // Elements across Admin pages
+  const exists = document.querySelector('[aria-label="Admin subtabs"]');
+  if(!exists) return;
+
+  // Storage keys
+  const K = {
+    general: 'admin.general.v1',
+    roles: 'admin.roles.v1',
+    users: 'admin.users.v1',
+    flags: 'admin.flags.v1',
+    audit: 'admin.audit.v1',
+    notify: 'admin.notify.v1',
+    templates: 'admin.templates.v1',
+    validation: 'admin.validation.v1',
+    currentRole: 'admin.currentRoleId.v1'
+  };
+
+  // Local HTML escaper for safe UI injection
+  const adminEscape = (str) => String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+
+  // Defaults
+  let general = { appName: 'Startup XYZ', logoUrl: '', theme: 'glass', timezone: 'UTC' };
+  let roles = [
+    { name:'Admin', desc:'Full access', perms:{ manageUsers:true, manageBilling:true, viewReports:true, manageConfigs:true }, users: 2 },
+    { name:'Manager', desc:'Team operations', perms:{ manageUsers:false, manageBilling:true, viewReports:true, manageConfigs:false }, users: 6 },
+    { name:'Viewer', desc:'Read only', perms:{ manageUsers:false, manageBilling:false, viewReports:true, manageConfigs:false }, users: 14 },
+  ];
+  let users = [];
+  let flags = [
+    { key:'betaDashboard', label:'Beta dashboard', enabled:true },
+    { key:'advancedReporting', label:'Advanced reporting', enabled:false },
+    { key:'collectionsTimeline', label:'Collections Timeline', enabled:true }
+  ];
+  let audit = [];
+  let notify = [
+    { id:'n_'+Math.random().toString(36).slice(2,9), event:'invoice.past_due', channel:'email', recipients:'finance@company.com', condition:'amount>1000', throttle:'1/day', active:true },
+  ];
+  let templates = [
+    { id:'t_invoice_due', key:'invoice_due', subject:'Invoice {{invoice}} due', body:'Hello {{name}},\nInvoice {{invoice}} for {{amount}} is due on {{due_date}}.' },
+  ];
+  let validation = [
+    { field:'email', required:true, type:'email', pattern:'', def:'' },
+    { field:'amount', required:true, type:'number', pattern:'', def:'0' },
+    { field:'due_date', required:true, type:'date', pattern:'', def:'' },
+  ];
+
+  // Load persisted
+  try { general = Object.assign(general, JSON.parse(localStorage.getItem(K.general)||'{}')||{}); } catch {}
+  try { const rs = JSON.parse(localStorage.getItem(K.roles)||'null'); if(Array.isArray(rs)) roles = rs; } catch {}
+  try { const us = JSON.parse(localStorage.getItem(K.users)||'null'); if(Array.isArray(us)) users = us; } catch {}
+  try { const fs = JSON.parse(localStorage.getItem(K.flags)||'null'); if(Array.isArray(fs)) flags = fs; } catch {}
+  try { const au = JSON.parse(localStorage.getItem(K.audit)||'null'); if(Array.isArray(au)) audit = au; } catch {}
+  try { const no = JSON.parse(localStorage.getItem(K.notify)||'null'); if(Array.isArray(no)) notify = no; } catch {}
+  try { const tp = JSON.parse(localStorage.getItem(K.templates)||'null'); if(Array.isArray(tp)) templates = tp; } catch {}
+  try { const vd = JSON.parse(localStorage.getItem(K.validation)||'null'); if(Array.isArray(vd)) validation = vd; } catch {}
+
+  // Ensure role ids exist (migration for older data)
+  let changedIds = false;
+  roles.forEach(r=>{ if(!r.id){ r.id = 'role_' + Math.random().toString(36).slice(2,10); changedIds = true; } });
+  if (changedIds) { try{ localStorage.setItem(K.roles, JSON.stringify(roles)); }catch{} }
+  // Seed users if empty
+  if (!users.length){
+    const findByName = (n)=> roles.find(r=>r.name===n)?.id || roles[0]?.id;
+    users = [
+      { id: 'u_'+Math.random().toString(36).slice(2,9), name:'Leslie Knope', email:'leslie@example.com', roleId: findByName('Admin'), active:true },
+      { id: 'u_'+Math.random().toString(36).slice(2,9), name:'Alex Doe', email:'alex@example.com', roleId: findByName('Manager'), active:true },
+      { id: 'u_'+Math.random().toString(36).slice(2,9), name:'Taylor Ray', email:'taylor@example.com', roleId: findByName('Viewer'), active:true }
+    ];
+  }
+
+  function save(){
+    try{ localStorage.setItem(K.general, JSON.stringify(general)); }catch{}
+    try{ localStorage.setItem(K.roles, JSON.stringify(roles)); }catch{}
+    try{ localStorage.setItem(K.users, JSON.stringify(users)); }catch{}
+    try{ localStorage.setItem(K.flags, JSON.stringify(flags)); }catch{}
+    try{ localStorage.setItem(K.audit, JSON.stringify(audit)); }catch{}
+    try{ localStorage.setItem(K.notify, JSON.stringify(notify)); }catch{}
+    try{ localStorage.setItem(K.templates, JSON.stringify(templates)); }catch{}
+    try{ localStorage.setItem(K.validation, JSON.stringify(validation)); }catch{}
+  }
+
+  // Overview wiring
+  (function wireOverview(){
+    const appName = document.getElementById('adminAppNameOv');
+    const tz = document.getElementById('adminTzOv');
+    const flagsWrap = document.getElementById('adminFlagsOv');
+    const roleSel = document.getElementById('adminCurrentRole');
+    if(appName) appName.value = general.appName || '';
+    if(tz) tz.value = general.timezone || 'UTC';
+    if (roleSel){
+      roleSel.innerHTML = roles.map(r=>`<option value="${r.id}">${adminEscape(r.name)}</option>`).join('');
+      const savedRole = localStorage.getItem(K.currentRole) || roles[0]?.id || '';
+      roleSel.value = savedRole;
+      roleSel.addEventListener('change', ()=>{ localStorage.setItem(K.currentRole, roleSel.value); try{ applySecurityGates(); }catch{} });
+    }
+    if(flagsWrap){
+      flagsWrap.innerHTML = flags.map((f,i)=>`
+        <label style="display:flex; align-items:center; gap:8px">
+          <input type="checkbox" data-flag-idx="${i}" ${f.enabled?'checked':''}/>
+          <span>${adminEscape(f.label||f.key)}</span>
+        </label>`).join('');
+      flagsWrap.addEventListener('change', (e)=>{
+        const cb = e.target.closest('[data-flag-idx]');
+        if(!cb) return;
+        const i = Number(cb.getAttribute('data-flag-idx'));
+        if(flags[i]){ flags[i].enabled = cb.checked; save(); try{ applySecurityGates(); }catch{} }
+      });
+    }
+  })();
+
+  // Notifications manager
+  (function wireNotify(){
+    const table = document.getElementById('adminNotifyTable');
+    const addBtn = document.getElementById('adminNotifyAdd');
+    const expBtn = document.getElementById('adminNotifyExport');
+    const impBtn = document.getElementById('adminNotifyImport');
+    if(!table || !addBtn) return;
+    function validateRecipient(token, channel){
+      const s = token.trim(); if(!s) return true;
+      if(channel==='email') return /.+@.+\..+/.test(s);
+      if(channel==='sms') return /^[+]?[\d\s().-]{7,}$/.test(s);
+      if(channel==='slack' || channel==='gchat') return s.startsWith('@') || s.startsWith('#');
+      return true;
+    }
+    function validateRow(i){
+      const rec = table.querySelector(`input[data-n-rec="${i}"]`);
+      const ch = table.querySelector(`select[data-n-ch="${i}"]`);
+      if(!rec || !ch) return;
+      const list = (rec.value||'').split(',').map(s=>s.trim()).filter(Boolean);
+      const invalid = list.filter(t=>!validateRecipient(t, ch.value));
+      if(invalid.length){ rec.style.borderColor = '#cc3a3a'; rec.title = `Invalid: ${invalid.join(', ')}`; }
+      else { rec.style.borderColor = ''; rec.title = ''; }
+    }
+    function render(){
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = notify.map((r,i)=>`<tr>
+        <td><input data-n-ev="${i}" placeholder="invoice.past_due" value="${adminEscape(r.event)}"/></td>
+        <td>
+          <select data-n-ch="${i}">
+            ${['email','slack','gchat','sms'].map(c=>`<option value="${c}" ${r.channel===c?'selected':''}>${c}</option>`).join('')}
+          </select>
+        </td>
+        <td><input data-n-rec="${i}" placeholder="a@b.com, #ops" value="${adminEscape(r.recipients||'')}"/></td>
+        <td><input data-n-cond="${i}" placeholder="amount>1000" value="${adminEscape(r.condition||'')}"/></td>
+        <td><input data-n-th="${i}" placeholder="1/day" value="${adminEscape(r.throttle||'')}"/></td>
+        <td style="text-align:center"><input type="checkbox" data-n-act="${i}" ${r.active?'checked':''}></td>
+        <td><button class="mini-btn" data-n-del="${i}">Delete</button></td>
+      </tr>`).join('');
+      notify.forEach((_,i)=> validateRow(i));
+    }
+    render();
+    addBtn.addEventListener('click', ()=>{ notify.push({ id:'n_'+Math.random().toString(36).slice(2,9), event:'custom.event', channel:'email', recipients:'', condition:'', throttle:'', active:true }); save(); render(); addAudit('system','create','notify'); });
+    table.addEventListener('input', (e)=>{
+      const ev=e.target.getAttribute('data-n-ev'); if(ev!=null){ notify[+ev].event=e.target.value; save(); return; }
+      const rc=e.target.getAttribute('data-n-rec'); if(rc!=null){ notify[+rc].recipients=e.target.value; save(); validateRow(+rc); return; }
+      const cd=e.target.getAttribute('data-n-cond'); if(cd!=null){ notify[+cd].condition=e.target.value; save(); return; }
+      const th=e.target.getAttribute('data-n-th'); if(th!=null){ notify[+th].throttle=e.target.value; save(); return; }
+    });
+    table.addEventListener('change', (e)=>{
+      const ch=e.target.getAttribute('data-n-ch'); if(ch!=null){ notify[+ch].channel=e.target.value; save(); validateRow(+ch); return; }
+      const ac=e.target.getAttribute('data-n-act'); if(ac!=null){ notify[+ac].active=e.target.checked; save(); return; }
+    });
+    table.addEventListener('click', (e)=>{
+      const del=e.target.closest('[data-n-del]'); if(!del) return; const i=+del.getAttribute('data-n-del'); notify.splice(i,1); save(); render(); addAudit('system','delete','notify');
+    });
+    expBtn?.addEventListener('click', ()=>{ const data=JSON.stringify(notify,null,2); navigator.clipboard?.writeText(data).catch(()=>{}); const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-'); downloadJSON(data, `notifications-${ts}.json`); showToast('Notification rules exported', 'success'); });
+    impBtn?.addEventListener('click', async ()=>{ const json = prompt('Paste JSON notification rules'); if(!json) return; try{ const arr=JSON.parse(json); if(Array.isArray(arr)){ notify=arr; save(); render(); showToast('Notification rules imported','success'); } else { showToast('Invalid JSON','error'); } }catch(e){ showToast('Invalid JSON','error'); } });
+
+    // Simulation wiring
+    const simEvent = document.getElementById('adminNotifySimEvent');
+    const simPayload = document.getElementById('adminNotifySimPayload');
+    const simRun = document.getElementById('adminNotifySimRun');
+    const simOut = document.getElementById('adminNotifySimResult');
+    function get(obj, path){ return path.split('.').reduce((v,k)=> (v && k in v) ? v[k] : undefined, obj); }
+    function parseValue(raw){ const s=String(raw).trim(); if((s.startsWith('"')&&s.endsWith('"'))||(s.startsWith("'")&&s.endsWith("'"))) return s.slice(1,-1); const n=Number(s); return isNaN(n)? s : n; }
+    function evalCond(cond, data){
+      if(!cond || !String(cond).trim()) return true;
+      const m = String(cond).match(/^\s*([a-zA-Z_][\w\.\[\]]*)\s*(==|!=|>=|<=|>|<|contains)\s*(.+)\s*$/);
+      if(!m) return false;
+      const field=m[1], op=m[2], rhsRaw=m[3];
+      const lhs = get(data, field);
+      const rhs = parseValue(rhsRaw);
+      switch(op){
+        case '==': return lhs == rhs; // eslint-disable-line eqeqeq
+        case '!=': return lhs != rhs; // eslint-disable-line eqeqeq
+        case '>': return Number(lhs) > Number(rhs);
+        case '<': return Number(lhs) < Number(rhs);
+        case '>=': return Number(lhs) >= Number(rhs);
+        case '<=': return Number(lhs) <= Number(rhs);
+        case 'contains': return String(lhs||'').includes(String(rhs));
+        default: return false;
+      }
+    }
+    function runSim(){
+      if(!simEvent || !simPayload || !simOut) return;
+      let data={};
+      try{ data = JSON.parse(simPayload.value || '{}'); }catch{ simOut.textContent = 'Invalid JSON'; return; }
+      const evk = (simEvent.value||'').trim();
+      const rows = notify.map((r,i)=>{
+        if(!r.active) return { i, status:'skip', reason:'inactive' };
+        if((r.event||'').trim() !== evk) return { i, status:'skip', reason:'event mismatch' };
+        const ok = evalCond(r.condition||'', data);
+        return ok ? { i, status:'trigger' } : { i, status:'skip', reason:'condition false' };
+      });
+      const html = `<ul class="mini-list">${rows.map(o=>`<li>${o.status==='trigger'?'✅':'⏭️'} Rule ${o.i+1} — ${o.status}${o.reason?` (${o.reason})`:''}</li>`).join('')}</ul>`;
+      simOut.innerHTML = html;
+    }
+    simRun?.addEventListener('click', runSim);
+
+    // Expose render for bundle import
+    window._renderAdminNotify = render;
+  })();
+
+  // Templates manager
+  (function wireTemplates(){
+    const sel = document.getElementById('adminTplSelect');
+    const k = document.getElementById('adminTplKey');
+    const s = document.getElementById('adminTplSubject');
+    const b = document.getElementById('adminTplBody');
+    const prev = document.getElementById('adminTplPreview');
+    const ch = document.getElementById('adminTplChannel');
+    const addBtn = document.getElementById('adminTplAdd');
+    const saveBtn = document.getElementById('adminTplSave');
+    const expBtn = document.getElementById('adminTplExport');
+    const impBtn = document.getElementById('adminTplImport');
+    if(!sel || !k || !s || !b || !prev || !ch) return;
+    // Migrate legacy records
+    templates.forEach(t=>{ if(!t.variants){ t.variants = { email: { subject: t.subject||'Subject', body: t.body||'' } }; delete t.subject; delete t.body; } });
+    function refreshSel(){ sel.innerHTML = templates.map(t=>`<option value="${t.id}">${adminEscape(t.key)}</option>`).join(''); }
+    function current(){ return templates.find(t=>t.id===sel.value); }
+    function ensureVariant(t, channel){ t.variants = t.variants||{}; t.variants[channel] = t.variants[channel] || (channel==='email'?{subject:'Subject', body:''}:{body:''}); }
+    function render(){ const t=current(); if(!t) return; const channel = ch.value; ensureVariant(t, channel); k.value=t.key; const v=t.variants[channel]; s.value = (channel==='email'?(v.subject||''):''); b.value=v.body||''; s.parentElement.style.display = (channel==='email'?'grid':'none'); renderPreview(); }
+    function renderPreview(){ const demo={ name:'Megs', invoice:'#123', amount:'$1,200', due_date:'2025-09-01' }; const channel = ch.value; const subj = channel==='email'? replaceTpl(s.value,demo) : ''; const body = replaceTpl(b.value,demo).replace(/\n/g,'<br/>'); prev.innerHTML = channel==='email' ? `<strong>${subj}</strong><br/>${body}` : `<div style="font-family:ui-monospace,Menlo,Consolas">${body}</div>`; }
+    function replaceTpl(str, data){ return String(str).replace(/\{\{(.*?)\}\}/g, (_,k)=> adminEscape(data[k.trim()]||'')); }
+    refreshSel(); if(!sel.value && templates[0]) sel.value = templates[0].id; ch.value = 'email'; render();
+    sel.addEventListener('change', render);
+    [k,s,b,ch].forEach(el=> el.addEventListener('input', renderPreview));
+    ch.addEventListener('change', render);
+    addBtn?.addEventListener('click', ()=>{ const id='t_'+Math.random().toString(36).slice(2,9); templates.push({ id, key:'new_template', variants:{ email:{ subject:'Subject', body:'Body' } } }); save(); refreshSel(); sel.value=id; ch.value='email'; render(); addAudit('system','create','template'); });
+    saveBtn?.addEventListener('click', ()=>{ const t=current(); if(!t) return; const channel=ch.value; ensureVariant(t, channel); t.key=k.value.trim()||'template'; if(channel==='email'){ t.variants.email.subject = s.value; t.variants.email.body = b.value; } else { t.variants[channel].body = b.value; } save(); alert('Template saved'); addAudit('system','update','template'); });
+    expBtn?.addEventListener('click', ()=>{ const data=JSON.stringify(templates,null,2); navigator.clipboard?.writeText(data).catch(()=>{}); const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-'); downloadJSON(data, `templates-${ts}.json`); showToast('Templates exported','success'); });
+    impBtn?.addEventListener('click', ()=>{ const json=prompt('Paste JSON templates'); if(!json) return; try{ let arr=JSON.parse(json); if(Array.isArray(arr)){ arr = arr.map(t=>{ if(!t.variants){ t.variants={ email:{ subject:t.subject||'Subject', body:t.body||'' } }; delete t.subject; delete t.body; } return t; }); templates=arr; save(); refreshSel(); if(templates[0]){ sel.value=templates[0].id; ch.value='email'; render(); } showToast('Templates imported','success'); } else { showToast('Invalid JSON','error'); } }catch{ showToast('Invalid JSON','error'); } });
+    window._renderAdminTemplates = ()=>{ refreshSel(); render(); };
+  })();
+
+  // Validation & defaults
+  (function wireValidation(){
+    const table = document.getElementById('adminValTable');
+    const reset = document.getElementById('adminValReset');
+    if(!table) return;
+    function render(){
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = validation.map((v,i)=>`<tr>
+        <td><input data-v-f="${i}" value="${adminEscape(v.field)}"/></td>
+        <td style="text-align:center"><input type="checkbox" data-v-req="${i}" ${v.required?'checked':''}></td>
+        <td>
+          <select data-v-type="${i}">
+            ${['string','number','email','date'].map(t=>`<option value="${t}" ${v.type===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </td>
+        <td><input data-v-pat="${i}" placeholder="^\\d+$" value="${adminEscape(v.pattern||'')}"/></td>
+        <td><input data-v-def="${i}" value="${adminEscape(v.def||'')}"/></td>
+        <td><input data-v-sample="${i}" placeholder="Try a value"/></td>
+        <td><span data-v-result="${i}" class="muted">—</span></td>
+        <td><button class="mini-btn" data-v-del="${i}">Delete</button></td>
+      </tr>`).join('');
+      validation.forEach((_,i)=> evalRow(i));
+    }
+    function evalRow(i){
+      const v = validation[i]; if(!v) return;
+      const sampleEl = table.querySelector(`[data-v-sample="${i}"]`);
+      const resEl = table.querySelector(`[data-v-result="${i}"]`);
+      if(!sampleEl || !resEl) return;
+      const val = sampleEl.value || '';
+      let ok = true; let msg = 'OK';
+      if(v.required && !val){ ok=false; msg='Required'; }
+      if(ok){
+        switch(v.type){
+          case 'number': ok = !isNaN(Number(val)); msg = ok?msg:'Not a number'; break;
+          case 'email': ok = /.+@.+\..+/.test(val); msg = ok?msg:'Invalid email'; break;
+          case 'date': ok = !isNaN(Date.parse(val)); msg = ok?msg:'Invalid date'; break;
+          default: ok = true;
+        }
+      }
+      if(ok && v.pattern){
+        try{ const re = new RegExp(v.pattern); ok = re.test(val); msg = ok?msg:'Pattern mismatch'; }
+        catch(e){ ok=false; msg='Invalid pattern'; }
+      }
+      resEl.textContent = ok ? '✓ Pass' : `✕ ${msg}`;
+      resEl.style.color = ok ? '#16a34a' : '#b42323';
+    }
+    render();
+    window._renderAdminValidation = render;
+    table.addEventListener('input', (e)=>{
+      const f=e.target.getAttribute('data-v-f'); if(f!=null){ validation[+f].field=e.target.value; save(); return; }
+      const p=e.target.getAttribute('data-v-pat'); if(p!=null){ validation[+p].pattern=e.target.value; save(); evalRow(+p); return; }
+      const d=e.target.getAttribute('data-v-def'); if(d!=null){ validation[+d].def=e.target.value; save(); return; }
+      const s=e.target.getAttribute('data-v-sample'); if(s!=null){ evalRow(+s); return; }
+    });
+    table.addEventListener('change', (e)=>{
+      const t=e.target.getAttribute('data-v-type'); if(t!=null){ validation[+t].type=e.target.value; save(); evalRow(+t); return; }
+      const r=e.target.getAttribute('data-v-req'); if(r!=null){ validation[+r].required=e.target.checked; save(); evalRow(+r); return; }
+    });
+    table.addEventListener('click', (e)=>{ const del=e.target.closest('[data-v-del]'); if(!del) return; const i=+del.getAttribute('data-v-del'); validation.splice(i,1); save(); render(); });
+    reset?.addEventListener('click', ()=>{ if(confirm('Reset validation rules to defaults?')){ validation = [ { field:'email', required:true, type:'email', pattern:'', def:'' }, { field:'amount', required:true, type:'number', pattern:'', def:'0' }, { field:'due_date', required:true, type:'date', pattern:'', def:'' } ]; save(); render(); showToast('Validation rules reset','success'); }});
+  })();
+
+  // Bundle import/export (Admin Overview)
+  (function wireBundles(){
+    const exp = document.getElementById('adminBundleExport');
+    const imp = document.getElementById('adminBundleImport');
+    function exportBundle(){
+      const bundle = { general, roles, users, flags, notify, templates, validation, currentRole: localStorage.getItem(K.currentRole)||'' };
+      const json = JSON.stringify(bundle, null, 2);
+      navigator.clipboard?.writeText(json).catch(()=>{});
+      const ts=new Date().toISOString().slice(0,19).replace(/[:T]/g,'-'); downloadJSON(json, `bundle-${ts}.json`);
+      showToast('Bundle exported','success');
+    }
+    function importBundle(){
+      const json = prompt('Paste bundle JSON'); if(!json) return;
+      try{
+        const b = JSON.parse(json);
+        if(b.general) general = b.general;
+        if(Array.isArray(b.roles)) roles = b.roles;
+        if(Array.isArray(b.users)) users = b.users;
+        if(Array.isArray(b.flags)) flags = b.flags;
+        if(Array.isArray(b.notify)) notify = b.notify;
+        if(Array.isArray(b.templates)) templates = b.templates;
+        if(Array.isArray(b.validation)) validation = b.validation;
+        if(b.currentRole) localStorage.setItem(K.currentRole, b.currentRole);
+        save();
+        try{ window._renderAdminRoles?.(); window._renderAdminUsers?.(); window._renderAdminNotify?.(); window._renderAdminTemplates?.(); window._renderAdminValidation?.(); applySecurityGates(); }catch{}
+        showToast('Bundle imported','success');
+      }catch{ showToast('Invalid JSON','error'); }
+    }
+    exp?.addEventListener('click', exportBundle);
+    imp?.addEventListener('click', importBundle);
+  })();
+  // General form
+  (function wireGeneral(){
+    const appName = document.getElementById('adminAppName');
+    const logo = document.getElementById('adminLogoUrl');
+    const theme = document.getElementById('adminTheme');
+    const tz = document.getElementById('adminTimezone');
+    const scale = document.getElementById('adminUiScale');
+    const scaleVal = document.getElementById('adminUiScaleVal');
+    const saveBtn = document.getElementById('adminGeneralSave');
+    if(!appName || !theme || !tz || !saveBtn) return;
+    appName.value = general.appName || '';
+    logo && (logo.value = general.logoUrl || '');
+    theme.value = general.theme || 'glass';
+    tz.value = general.timezone || 'UTC';
+    // UI scale slider setup
+    if(scale){
+      const s = (general.uiScale != null) ? Number(general.uiScale) : 0.8;
+      scale.value = isNaN(s) ? 0.8 : s;
+      if(scaleVal) scaleVal.textContent = `${Math.round((Number(scale.value)||0.8)*100)}%`;
+      scale.addEventListener('input', ()=>{
+        const v = Number(scale.value)||0.8;
+        if(scaleVal) scaleVal.textContent = `${Math.round(v*100)}%`;
+        // live preview of scaling
+        try{ document.documentElement.style.setProperty('--ui-scale', String(v)); }catch{}
+      });
+    }
+    saveBtn.addEventListener('click', ()=>{
+      general.appName = appName.value.trim() || 'App';
+      general.logoUrl = logo ? (logo.value||'') : '';
+      general.theme = theme.value || 'glass';
+      general.timezone = tz.value || 'UTC';
+      if(scale){ general.uiScale = Number(scale.value)||0.8; }
+      save();
+      // Apply look immediately
+      try{ document.body.setAttribute('data-look', general.theme); }catch{}
+      // Apply UI scale immediately
+      try{ if(scale) document.documentElement.style.setProperty('--ui-scale', String(general.uiScale||0.8)); }catch{}
+      // Sidebar brand text
+      const brand = document.querySelector('.sidebar .brand span');
+      if(brand) brand.textContent = general.appName || 'App';
+      addAudit('system','update','general');
+    });
+  })();
+
+  // Roles table
+  (function wireRoles(){
+    const table = document.getElementById('adminRolesTable');
+    const addBtn = document.getElementById('adminRoleAdd');
+    if(!table || !addBtn) return;
+    function render(){
+      const tbody = table.querySelector('tbody');
+      // compute user counts by roleId
+      const counts = (function(){ const m={}; try{ (JSON.parse(localStorage.getItem('admin.users.v1')||'[]')||[]).forEach(u=>{ m[u.roleId]=(m[u.roleId]||0)+1; }); }catch{} return m; })();
+      tbody.innerHTML = roles.map((r,i)=>`
+        <tr>
+          <td><input data-r-n="${i}" value="${adminEscape(r.name)}"/></td>
+          <td><input data-r-d="${i}" value="${adminEscape(r.desc||'')}"/></td>
+          <td>${counts[r.id]||0}</td>
+          <td><button class="mini-btn" data-r-del="${i}">Delete</button></td>
+        </tr>`).join('');
+    }
+    render();
+    // Expose for other admin modules to request refresh
+    window._renderAdminRoles = render;
+    addBtn.addEventListener('click', ()=>{
+      roles.push({ id:'role_'+Math.random().toString(36).slice(2,10), name:'New Role', desc:'', perms:{ manageUsers:false, manageBilling:false, viewReports:false, manageConfigs:false } });
+      save(); render(); addAudit('system','create','role');
+    });
+    table.addEventListener('input', (e)=>{
+      const n = e.target.getAttribute('data-r-n');
+      const d = e.target.getAttribute('data-r-d');
+      if(n != null){ roles[Number(n)].name = e.target.value; save(); window._renderAdminUsers?.(); }
+      if(d != null){ roles[Number(d)].desc = e.target.value; save(); }
+    });
+    table.addEventListener('click', (e)=>{
+      const del = e.target.closest('[data-r-del]');
+      if(!del) return;
+      const i = Number(del.getAttribute('data-r-del'));
+      const removed = roles.splice(i,1)[0];
+      // Reassign users of removed role to first available role
+      if (removed && removed.id && roles[0]){
+        const fallback = roles[0].id;
+        users.forEach(u=>{ if(u.roleId===removed.id) u.roleId = fallback; });
+      }
+      save(); render(); addAudit('system','delete','role');
+      // Re-render dependent UIs
+      try{ applySecurityGates(); }catch{}
+    });
+  })();
+
+  // Permissions matrix
+  (function wirePerms(){
+    const host = document.getElementById('adminPermsMatrix');
+    if(!host) return;
+    const permList = [
+      { key:'manageUsers', label:'Manage Users' },
+      { key:'manageBilling', label:'Manage Billing' },
+      { key:'viewReports', label:'View Reports' },
+      { key:'manageConfigs', label:'Manage Configs' },
+    ];
+    function render(){
+      const header = `<thead><tr><th>Role</th>${permList.map(p=>`<th>${p.label}</th>`).join('')}</tr></thead>`;
+      const body = `<tbody>${roles.map((r,ri)=>`<tr><td>${adminEscape(r.name)}</td>${permList.map(p=>`<td style="text-align:center"><input type="checkbox" data-p-ri="${ri}" data-p-k="${p.key}" ${r.perms&&r.perms[p.key]?'checked':''}></td>`).join('')}</tr>`).join('')}</tbody>`;
+      host.innerHTML = `<table class="cfg-table">${header}${body}</table>`;
+    }
+    render();
+    host.addEventListener('change', (e)=>{
+      const ri = e.target.getAttribute('data-p-ri');
+      const key = e.target.getAttribute('data-p-k');
+      if(ri==null || !key) return;
+      const i = Number(ri);
+      roles[i].perms = roles[i].perms || {};
+      roles[i].perms[key] = e.target.checked;
+      save(); addAudit('system','update','permissions'); try{ applySecurityGates(); }catch{}
+    });
+  })();
+
+  // Feature Flags
+  (function wireFlags(){
+    const table = document.getElementById('adminFlagsTable');
+    const addBtn = document.getElementById('adminFlagAdd');
+    if(!table || !addBtn) return;
+    function render(){
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = flags.map((f,i)=>`<tr>
+        <td><input data-f-k="${i}" value="${adminEscape(f.key)}"/></td>
+        <td><input data-f-l="${i}" value="${adminEscape(f.label||'')}"/></td>
+        <td><input type="checkbox" data-f-e="${i}" ${f.enabled?'checked':''}></td>
+        <td><button class="mini-btn" data-f-del="${i}">Delete</button></td>
+      </tr>`).join('');
+    }
+    render();
+    addBtn.addEventListener('click', ()=>{
+      flags.push({ key:`flag_${Date.now()}`, label:'New Flag', enabled:false });
+      save(); render(); addAudit('system','create','flag');
+    });
+    table.addEventListener('input', (e)=>{
+      const k = e.target.getAttribute('data-f-k');
+      const l = e.target.getAttribute('data-f-l');
+      if(k != null){ flags[Number(k)].key = e.target.value; save(); }
+      if(l != null){ flags[Number(l)].label = e.target.value; save(); }
+    });
+    table.addEventListener('change', (e)=>{
+      const en = e.target.getAttribute('data-f-e');
+      if(en != null){ flags[Number(en)].enabled = e.target.checked; save(); addAudit('system','update','flag'); try{ applySecurityGates(); }catch{} }
+    });
+    table.addEventListener('click', (e)=>{
+      const del = e.target.closest('[data-f-del]');
+      if(!del) return;
+      const i = Number(del.getAttribute('data-f-del'));
+      flags.splice(i,1); save(); render(); addAudit('system','delete','flag');
+    });
+  })();
+
+  // Users management
+  (function wireUsers(){
+    const table = document.getElementById('adminUsersTable');
+    const addBtn = document.getElementById('adminUserAdd');
+    if(!table || !addBtn) return;
+    function roleOptions(selId){ return roles.map(r=>`<option value="${r.id}" ${selId===r.id?'selected':''}>${adminEscape(r.name)}</option>`).join(''); }
+    function render(){
+      const tbody = table.querySelector('tbody');
+      tbody.innerHTML = users.map((u,i)=>`<tr>
+        <td><input data-u-n="${i}" value="${adminEscape(u.name)}"/></td>
+        <td><input data-u-e="${i}" value="${adminEscape(u.email)}"/></td>
+        <td><select data-u-r="${i}">${roleOptions(u.roleId)}</select></td>
+        <td style="text-align:center"><input type="checkbox" data-u-a="${i}" ${u.active?'checked':''}></td>
+        <td><button class="mini-btn" data-u-del="${i}">Delete</button></td>
+      </tr>`).join('');
+    }
+    render();
+    window._renderAdminUsers = render;
+    addBtn.addEventListener('click', ()=>{
+      const rid = roles[0]?.id || '';
+      users.push({ id:'u_'+Math.random().toString(36).slice(2,9), name:'New User', email:'', roleId: rid, active:true });
+      save(); render(); addAudit('system','create','user'); window._renderAdminRoles?.();
+    });
+    table.addEventListener('input', (e)=>{
+      const n = e.target.getAttribute('data-u-n');
+      const em = e.target.getAttribute('data-u-e');
+      if(n != null){ users[Number(n)].name = e.target.value; save(); }
+      if(em != null){ users[Number(em)].email = e.target.value; save(); }
+    });
+    table.addEventListener('change', (e)=>{
+      const r = e.target.getAttribute('data-u-r');
+      const a = e.target.getAttribute('data-u-a');
+      if(r != null){ users[Number(r)].roleId = e.target.value; save(); window._renderAdminRoles?.(); try{ applySecurityGates(); }catch{} }
+      if(a != null){ users[Number(a)].active = e.target.checked; save(); }
+    });
+    table.addEventListener('click', (e)=>{
+      const del = e.target.closest('[data-u-del]');
+      if(!del) return;
+      const i = Number(del.getAttribute('data-u-del'));
+      users.splice(i,1); save(); render(); addAudit('system','delete','user'); window._renderAdminRoles?.();
+    });
+  })();
+
+  // (removed) delegated click fallback; direct listeners are bound in each panel
+
+  // Audit
+  (function wireAudit(){
+    const table = document.getElementById('adminAuditTable');
+    const seed = document.getElementById('adminAuditSeed');
+    if(!table || !seed) return;
+    function render(){
+      const tbody = table.querySelector('tbody');
+      if(!audit.length){
+        tbody.innerHTML = `<tr><td colspan="4" class="muted" style="text-align:center; padding:12px">No audit events</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = audit.slice().reverse().map(a=>`<tr><td>${new Date(a.time).toLocaleString()}</td><td>${adminEscape(a.actor)}</td><td>${adminEscape(a.action)}</td><td>${adminEscape(a.target)}</td></tr>`).join('');
+    }
+    render();
+    seed.addEventListener('click', ()=>{
+      const now = Date.now();
+      audit.push({ time: now-60000, actor:'system', action:'create', target:'role Manager' });
+      audit.push({ time: now-30000, actor:'megs', action:'update', target:'flag betaDashboard' });
+      audit.push({ time: now-10000, actor:'system', action:'update', target:'general' });
+      save(); render();
+    });
+    // Re-render when subtab changes to audit
+    document.addEventListener('subtab:changed', (e)=>{ if((e.detail?.id||'')==='admin-audit') render(); });
+  })();
+
+  function addAudit(actor, action, target){
+    try{
+      audit.push({ time: Date.now(), actor, action, target });
+      localStorage.setItem(K.audit, JSON.stringify(audit));
+    }catch{}
+  }
+}
+
+
+// Override Collections with a no-op to restore placeholder
+function initCollections(){
+  const ta = document.getElementById('colSpecNotes');
+  if(!ta) return;
+  try{ ta.value = localStorage.getItem('collections.specnotes') || ''; }catch{}
+  ta.addEventListener('input', ()=>{
+    try{ localStorage.setItem('collections.specnotes', ta.value || ''); }catch{}
+  });
+}
+
+// Optional stub for environments that reference basic collections init
+function initCollectionsBasic(){}
+
 
 // Developer helper: reset Home layout state
 window.DASH_RESET = function(){};
@@ -1287,7 +3396,7 @@ function setCardType(card, type){
     sales: { icon:'#i-tag', label:'Sales this month', value:'320k' },
     customers: { icon:'#i-users', label:'Customers gained', value:'6,458' },
     orders: { icon:'#i-cart', label:'Orders this month', value:'900' },
-    weather: { icon:'#i-life', label:'Weather', value:'72°F ☀️' },
+    weather: { icon:'#i-life', label:'Weather', value:'72°F Sunny' },
     calculator: { icon:'#i-settings', label:'Calculator', value:'Open' },
     quicklinks: { icon:'#i-report', label:'Quick Links', value:'3' },
     email: { icon:'#i-mail', label:'Email', value:'2 unread' },
@@ -1590,4 +3699,305 @@ function initResetButton(){
       .forEach(k=>localStorage.removeItem(k));
     location.reload();
   });
+}
+
+// Lightweight scoped widget system for tab Overviews
+function initWidgetScope(scope){
+  const grid = document.getElementById(`widgetGrid--${scope}`);
+  const addBtn = document.getElementById(`widgetsAddBtn--${scope}`);
+  const editBtn = document.getElementById(`widgetsEditBtn--${scope}`);
+  const badge = document.getElementById(`widgetsEditBadge--${scope}`);
+  const sideGallery = document.getElementById('widgetGallerySide');
+  if(!grid || !addBtn || !editBtn) return;
+
+  const CFG_KEY = `widgets.config.v1.${scope}`;
+  const LS_KEY = `widgets.layout.v1.${scope}`;
+  function readAllCfg(){ try { return JSON.parse(localStorage.getItem(CFG_KEY)||'{}'); } catch { return {}; } }
+  function getCfg(id){ const all = readAllCfg(); return all[id] || {}; }
+  function setCfg(id, cfg){ const all = readAllCfg(); all[id] = cfg; localStorage.setItem(CFG_KEY, JSON.stringify(all)); }
+
+  function uid(){ return scope + '-' + Math.random().toString(36).slice(2,10); }
+  function spanFor(size, orient){
+    const s=(size||'xs').toLowerCase(), o=(orient||'').toLowerCase(); const p=o==='portrait';
+    return s==='xxl'?{cols:3,rows:3}: s==='xl'?(p?{cols:2,rows:4}:{cols:4,rows:2}): s==='l'?(p?{cols:2,rows:3}:{cols:3,rows:2}): s==='m'?{cols:2,rows:2}: s==='s'?(p?{cols:1,rows:2}:{cols:2,rows:1}) : {cols:1,rows:1};
+  }
+  function defaultOrientFor(size){ switch((size||'').toLowerCase()){ case 's': return 'landscape'; case 'l': case 'xl': return 'portrait'; default: return ''; } }
+  function applySpans(el){ const sz=el.dataset.size||'xs', ori=el.dataset.orient||defaultOrientFor(sz)||''; const {cols,rows}=spanFor(sz,ori); el.style.gridColumn=`span ${cols}`; el.style.gridRow=`span ${rows}`; }
+
+  function titleFor(t){ return ({kpi:'KPI', metrics:'Metrics', email:'Email', messages:'Messages', calendar:'Calendar', announcements:'Announcements', reminders:'Reminders', tasks:'Tasks', notes:'Quick Notes', quicklinks:'Quick Links', calculator:'Calculator', weather:'Weather'})[t]||'Widget'; }
+  function iconFor(t){ return ({kpi:'#i-stats', metrics:'#i-growth', email:'#i-mail', messages:'#i-mail', calendar:'#i-life', announcements:'#i-report', reminders:'#i-settings', tasks:'#i-settings', notes:'#i-report', quicklinks:'#i-report', calculator:'#i-settings', weather:'#i-life'})[t]||'#i-report'; }
+  function renderBody(t,id){
+    if(t==='metrics') return `<div class="chart-box" data-type="metrics"><canvas id="c_${id}" height="120"></canvas></div>`;
+    if(t==='kpi') return `<div class="kpi-wrap" data-type="kpi"><div class="kpi-value">$132,000</div><div class="kpi-label muted">Revenue</div></div>`;
+    if(t==='email') return `<ul class="mini-list"><li>Invoice #883 payment received</li><li>Q3 planning deck</li></ul>`;
+    if(t==='messages') return `<ul class="mini-list"><li>#alerts: Risk monitor</li><li>Fin-Chat: aging review</li></ul>`;
+    if(t==='calendar') return `<ul class="mini-list"><li>Today 10:00 — AR standup</li><li>15:00 — Aging review</li></ul>`;
+    if(t==='notes') return `<textarea class="notes-area" data-notes-key="widget.notes.${scope}.${id}" placeholder="Quick note..." rows="5"></textarea>`;
+    if(t==='quicklinks') return `<div class="links-wrap"><a class="link" href="#">Open ${scope.toUpperCase()}</a><a class="link" href="#">New Item</a></div>`;
+    if(t==='calculator') return `<div class="calc" data-calc-id="${id}"><div class="calc-display">0</div><div class="calc-pad"><button class="calc-btn op" data-k="ac">AC</button><button class="calc-btn" data-k="7">7</button><button class="calc-btn" data-k="8">8</button><button class="calc-btn" data-k="9">9</button><button class="calc-btn op" data-k="/">÷</button><button class="calc-btn" data-k="4">4</button><button class="calc-btn" data-k="5">5</button><button class="calc-btn" data-k="6">6</button><button class="calc-btn op" data-k="*">×</button><button class="calc-btn" data-k="1">1</button><button class="calc-btn" data-k="2">2</button><button class="calc-btn" data-k="3">3</button><button class="calc-btn op" data-k="-">−</button><button class="calc-btn" data-k="0" style="grid-column: span 2">0</button><button class="calc-btn" data-k=".">.</button><button class="calc-btn op" data-k="+">+</button><button class="calc-btn eq" data-k="=">=</button></div></div>`;
+    if(t==='weather') return `<div class="weather"><div class="temp">72°</div><div class="muted">Sunny · Local</div></div>`;
+    return `<div class="muted">Empty</div>`;
+}
+
+// Install a one-time boot so scoped dashboards initialize only when shown
+function setupScopedWidgetBoot(){
+  const booted = {};
+  function tryBoot(scope){ if (booted[scope]) return; if (document.getElementById(`widgetGrid--${scope}`)) { initWidgetScope(scope); booted[scope] = true; } }
+  // If the page opens directly on a scoped overview, boot it
+  tryBoot('recv'); tryBoot('pay'); tryBoot('cf');
+  document.addEventListener('subtab:changed', (e)=>{
+    const id = e.detail?.id || '';
+    if (id === 'recv-overview') tryBoot('recv');
+    if (id === 'pay-overview') tryBoot('pay');
+    if (id === 'cf-overview') tryBoot('cf');
+  });
+}
+
+// Lazy-include HTML partials when a subtab is activated
+(function initHtmlIncludes(){
+  async function loadInclude(el){
+    if (!el || el.getAttribute('data-included')==='true') return;
+    const url = el.getAttribute('data-include'); if(!url) return;
+    try{
+      let res = await fetch(url, { cache:'no-cache' });
+      let html = await res.text();
+      // Some dev servers may 304 with empty body; try a cache-bust retry
+      if (!html || !html.trim()){
+        res = await fetch(url + (url.includes('?')?'&':'?') + 't=' + Date.now());
+        html = await res.text();
+      }
+      el.innerHTML = html || `<div class=\"muted\">Failed to load ${url}</div>`;
+      el.setAttribute('data-included','true');
+      // After injection, ensure current subtab visibility is applied
+      const group = el.previousElementSibling && el.previousElementSibling.matches('.subnav') ? el.previousElementSibling : null;
+      const activeId = group ? (group.querySelector('.subtab.is-active')?.dataset.subtab || '') : '';
+      if (activeId){
+        document.querySelectorAll(`[data-subtab-panel^="${activeId.split('-')[0]}-"]`).forEach(p=>{
+          p.classList.toggle('is-hidden', p.dataset.subtabPanel !== activeId);
+        });
+      }
+    }catch(e){ el.innerHTML = `<div class=\"muted\">Failed to load ${url}</div>`; }
+  }
+  // Eagerly load all include hosts so panels exist before first click
+  document.querySelectorAll('[data-include]').forEach(loadInclude);
+  // Load on subtab change
+  document.addEventListener('subtab:changed', (e)=>{
+    const id = e.detail?.id || '';
+    const prefix = id.split('-')[0];
+    const hostId = ({ recv:'recvPanels', cf:'cfPanels', pay:'payPanels', projects:'projectsPanels', service:'servicePanels', compliance:'compliancePanels' })[prefix];
+    if (hostId){ const host = document.getElementById(hostId); if (host) loadInclude(host); }
+  });
+})();
+
+// ---------------- Receivables: Configuration UI ------------------
+(function initRecvConfig(){
+  const panel = () => document.querySelector('[data-subtab-panel="recv-config"]');
+  const body = () => document.getElementById('recvCfgBody');
+  const saveBanner = () => document.getElementById('recvCfgUnsaved');
+  const KEY = 'ar.collections.config.v1';
+  const DEFAULTS = {
+    version:1, updatedAt:new Date().toISOString(),
+    app:{ density:'comfortable', table:{ visibleColumns:['id','account','amount','due','status','expected','assigned','sla'], defaultSort:{field:'due', dir:'asc'} } },
+    statuses:[
+      { name:'Pending Contact', key:'pending', type:'active', colorToken:'--primary-200', visible:true },
+      { name:'Contacted', key:'contacted', type:'active', colorToken:'--accent-sky', visible:true },
+      { name:'Promised Payment', key:'promised', type:'active', colorToken:'--accent-yellow', visible:true },
+      { name:'Overdue', key:'overdue', type:'active', colorToken:'--accent-coral', visible:true },
+      { name:'Escalated', key:'escalated', type:'escalation', colorToken:'--accent-pink', visible:true },
+      { name:'Paid', key:'paid', type:'terminal', colorToken:'--accent-green', visible:true }
+    ],
+    tags:[ {label:'High Value', key:'highValue', colorToken:'--accent-pink'}, {label:'First Contact', key:'firstContact'} ],
+    templates:[ {name:'Call Attempt', key:'call', category:'Call', body:'Called {{account}} regarding {{invoice}}; no answer, voicemail left with callback number.', hotkey:'Ctrl+1'}, {name:'Promise to Pay', key:'promise', category:'Note', body:'{{account}} promised to pay {{amount}} for {{invoice}} by {{expected}}.', hotkey:'Ctrl+2'}],
+    sla:{ defaultHours:4, rules:[ { if:{ amountGte:10000 }, hours:2, label:'High amount' }, { if:{ tagIncludes:'highValue' }, hours:2, label:'High value' } ] }
+  };
+  function getCfg(){ try{ return JSON.parse(localStorage.getItem(KEY)||'')||DEFAULTS; }catch{return DEFAULTS;} }
+  function setCfg(cfg){ const out = { ...cfg, version:1, updatedAt:new Date().toISOString() }; localStorage.setItem(KEY, JSON.stringify(out)); return out; }
+  let cfg = getCfg(); let dirty=false; const markDirty=()=>{ dirty=true; saveBanner()?.style && (saveBanner().style.display='block'); };
+
+  function renderNav(){ const nav = document.getElementById('recvCfgNav'); if(!nav) return; nav.querySelectorAll('[data-cfg-page]').forEach(btn=>{ btn.addEventListener('click', ()=>{ nav.querySelectorAll('[data-cfg-page]').forEach(b=>b.classList.remove('active')); btn.classList.add('active'); renderPage(btn.dataset.cfgPage); }); }); nav.querySelector('[data-cfg-page]')?.click(); }
+
+  function colorTokenChip(token){ const el = document.createElement('span'); el.className='cfg-chip'; const sw = document.createElement('span'); sw.className='cfg-token'; sw.style.background = getComputedStyle(document.body).getPropertyValue(token)||'#eee'; el.appendChild(sw); el.appendChild(document.createTextNode(' '+token)); return el.outerHTML; }
+
+  function renderStatuses(){
+    const b = body(); if(!b) return;
+    const rows = cfg.statuses.map((s,i)=>`
+      <tr>
+        <td><div class="cfg-row-actions"><button class="mini-btn" data-up=${i}>↑</button><button class="mini-btn" data-down=${i}>↓</button></div></td>
+        <td><input data-edit="name" data-idx=${i} value="${s.name}" style="width:140px"></td>
+        <td><input data-edit="key" data-idx=${i} value="${s.key}" style="width:120px"></td>
+        <td>
+          <select data-edit="type" data-idx=${i}>
+            <option ${s.type==='active'?'selected':''}>active</option>
+            <option ${s.type==='terminal'?'selected':''}>terminal</option>
+            <option ${s.type==='escalation'?'selected':''}>escalation</option>
+          </select>
+        </td>
+        <td>
+          <select data-edit="colorToken" data-idx=${i}>
+            ${['--primary-200','--accent-sky','--accent-yellow','--accent-coral','--accent-pink','--accent-green'].map(t=>`<option value="${t}" ${s.colorToken===t?'selected':''}>${t}</option>`).join('')}
+          </select>
+        </td>
+        <td><input type="checkbox" data-edit="visible" data-idx=${i} ${s.visible?'checked':''}></td>
+        <td>${colorTokenChip(s.colorToken)}</td>
+        <td><button class="mini-btn" data-del=${i}>Delete</button></td>
+      </tr>`).join('');
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>Statuses</h3><div><button class="mini-btn" id="stAdd">+ New</button><button class="mini-btn" id="stReset">Reset Defaults</button></div></div>
+      <table class="cfg-table"><thead><tr><th></th><th>Name</th><th>Key</th><th>Type</th><th>Color</th><th>Visible</th><th>Preview</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    b.querySelector('#stAdd')?.addEventListener('click', ()=>{ cfg.statuses.push({name:'New', key:'new', type:'active', colorToken:'--primary-200', visible:true}); markDirty(); renderStatuses(); });
+    b.querySelector('#stReset')?.addEventListener('click', ()=>{ if(confirm('Reset statuses to defaults?')){ cfg.statuses = DEFAULTS.statuses.map(x=>({...x})); markDirty(); renderStatuses(); } });
+    b.querySelectorAll('[data-edit]').forEach(inp=> inp.addEventListener('input', (e)=>{ const i=+inp.dataset.idx; const k=inp.dataset.edit; let v=inp.type==='checkbox'?inp.checked:inp.value; cfg.statuses[i][k]=v; markDirty(); if(k==='colorToken') renderStatuses(); }));
+    b.querySelectorAll('[data-del]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.del; cfg.statuses.splice(i,1); markDirty(); renderStatuses(); }));
+    b.querySelectorAll('[data-up]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.up; if(i>0){ const t=cfg.statuses[i]; cfg.statuses[i]=cfg.statuses[i-1]; cfg.statuses[i-1]=t; markDirty(); renderStatuses(); } }));
+    b.querySelectorAll('[data-down]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.down; if(i<cfg.statuses.length-1){ const t=cfg.statuses[i]; cfg.statuses[i]=cfg.statuses[i+1]; cfg.statuses[i+1]=t; markDirty(); renderStatuses(); } }));
+  }
+
+  function renderTemplates(){
+    const b = body(); if(!b) return; const list = cfg.templates;
+    const rows = list.map((t,i)=>`
+      <tr>
+        <td><input data-tf="name" data-idx=${i} value="${t.name}" style="width:160px"></td>
+        <td><input data-tf="key" data-idx=${i} value="${t.key}" style="width:120px"></td>
+        <td><select data-tf="category" data-idx=${i}><option ${t.category==='Call'?'selected':''}>Call</option><option ${t.category==='Email'?'selected':''}>Email</option><option ${t.category==='Note'?'selected':''}>Note</option><option ${t.category==='Follow-up'?'selected':''}>Follow-up</option></select></td>
+        <td><input data-tf="hotkey" data-idx=${i} value="${t.hotkey||''}" style="width:110px" placeholder="Ctrl+1"></td>
+        <td><textarea data-tf="body" data-idx=${i} rows="2" style="width:100%">${t.body||''}</textarea></td>
+        <td><button class="mini-btn" data-t-del=${i}>Delete</button></td>
+      </tr>`).join('');
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>Note Templates</h3><div><button class="mini-btn" id="tplAdd">+ New</button><button class="mini-btn" id="tplReset">Reset Defaults</button></div></div>
+      <div class="cfg-grid"><div>Tokens: {{account}}, {{invoice}}, {{amount}}, {{expected}}, {{due}}</div>
+      <table class="cfg-table"><thead><tr><th>Name</th><th>Key</th><th>Category</th><th>Hotkey</th><th>Body</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+    b.querySelector('#tplAdd')?.addEventListener('click', ()=>{ list.push({name:'New Template', key:'new', category:'Note', body:'', hotkey:''}); markDirty(); renderTemplates(); });
+    b.querySelector('#tplReset')?.addEventListener('click', ()=>{ if(confirm('Reset templates to defaults?')){ cfg.templates = DEFAULTS.templates.map(x=>({...x})); markDirty(); renderTemplates(); } });
+    b.querySelectorAll('[data-tf]').forEach(el=> el.addEventListener('input', ()=>{ const i=+el.dataset.idx; const k=el.dataset.tf; list[i][k] = el.type==='checkbox'?el.checked:el.value; markDirty(); }));
+    b.querySelectorAll('[data-t-del]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.tDel; list.splice(i,1); markDirty(); renderTemplates(); }));
+  }
+
+  function renderTags(){
+    const b = body(); if(!b) return; const list = cfg.tags;
+    const rows = list.map((t,i)=>`
+      <tr>
+        <td><input data-tag="label" data-idx=${i} value="${t.label}" style="width:160px"></td>
+        <td><input data-tag="key" data-idx=${i} value="${t.key}" style="width:140px"></td>
+        <td><select data-tag="colorToken" data-idx=${i}><option value="">(none)</option>${['--accent-pink','--accent-sky','--accent-green','--accent-yellow','--accent-coral'].map(c=>`<option value="${c}" ${t.colorToken===c?'selected':''}>${c}</option>`).join('')}</select></td>
+        <td>${t.colorToken?colorTokenChip(t.colorToken):''}</td>
+        <td><button class="mini-btn" data-tag-del=${i}>Delete</button></td>
+      </tr>`).join('');
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>Tags</h3><div><button class="mini-btn" id="tagAdd">+ New</button><button class="mini-btn" id="tagReset">Reset Defaults</button></div></div>
+      <table class="cfg-table"><thead><tr><th>Label</th><th>Key</th><th>Color</th><th>Preview</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    b.querySelector('#tagAdd')?.addEventListener('click', ()=>{ list.push({label:'New Tag', key:'newTag'}); markDirty(); renderTags(); });
+    b.querySelector('#tagReset')?.addEventListener('click', ()=>{ if(confirm('Reset tags to defaults?')){ cfg.tags = DEFAULTS.tags.map(x=>({...x})); markDirty(); renderTags(); } });
+    b.querySelectorAll('[data-tag]').forEach(el=> el.addEventListener('input', ()=>{ const i=+el.dataset.idx; const k=el.dataset.tag; list[i][k] = el.value; markDirty(); renderTags(); }));
+    b.querySelectorAll('[data-tag-del]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.tagDel; list.splice(i,1); markDirty(); renderTags(); }));
+  }
+
+  function renderSla(){
+    const b = body(); if(!b) return; const s = cfg.sla;
+    const rules = s.rules.map((r,i)=>`
+      <tr>
+        <td><select data-sla-cond data-idx=${i}><option ${r.if.amountGte!=null?'selected':''} value="amountGte">amount >=</option><option ${r.if.tagIncludes!=null?'selected':''} value="tagIncludes">tag includes</option></select></td>
+        <td><input data-sla-val data-idx=${i} value="${r.if.amountGte ?? r.if.tagIncludes ?? ''}" style="width:140px"></td>
+        <td><input type="number" min="0" data-sla-hours data-idx=${i} value="${r.hours}" style="width:100px"></td>
+        <td><input data-sla-label data-idx=${i} value="${r.label||''}" style="width:160px"></td>
+        <td><button class="mini-btn" data-sla-del=${i}>Delete</button></td>
+      </tr>`).join('');
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>SLA Rules</h3></div>
+      <div class="cfg-row"><label>Default Hours</label><input type="number" min="0" id="slaDefault" value="${s.defaultHours}" style="width:120px"></div>
+      <table class="cfg-table" style="margin-top:8px"><thead><tr><th>Condition</th><th>Value</th><th>Hours</th><th>Label</th><th></th></tr></thead><tbody>${rules}</tbody></table>
+      <div style="margin-top:6px"><button class="mini-btn" id="slaAdd">+ Rule</button></div>
+    </div>`;
+    b.querySelector('#slaDefault')?.addEventListener('input', (e)=>{ cfg.sla.defaultHours = parseInt(e.target.value||'0',10); markDirty(); });
+    b.querySelector('#slaAdd')?.addEventListener('click', ()=>{ cfg.sla.rules.push({ if:{ amountGte:0 }, hours:1, label:'' }); markDirty(); renderSla(); });
+    b.querySelectorAll('[data-sla-del]').forEach(btn=> btn.addEventListener('click', ()=>{ const i=+btn.dataset.slaDel; cfg.sla.rules.splice(i,1); markDirty(); renderSla(); }));
+    b.querySelectorAll('[data-sla-cond]').forEach(sel=> sel.addEventListener('change', ()=>{ const i=+sel.dataset.idx; const v=sel.value; const cur = cfg.sla.rules[i]; cur.if = v==='amountGte'?{amountGte:0}:{tagIncludes:''}; markDirty(); renderSla(); }));
+    b.querySelectorAll('[data-sla-val]').forEach(inp=> inp.addEventListener('input', ()=>{ const i=+inp.dataset.idx; const cur = cfg.sla.rules[i]; if(cur.if.amountGte!=null) cur.if.amountGte = parseFloat(inp.value||'0'); else cur.if.tagIncludes = inp.value; markDirty(); }));
+    b.querySelectorAll('[data-sla-hours]').forEach(inp=> inp.addEventListener('input', ()=>{ const i=+inp.dataset.idx; cfg.sla.rules[i].hours = parseInt(inp.value||'0',10); markDirty(); }));
+    b.querySelectorAll('[data-sla-label]').forEach(inp=> inp.addEventListener('input', ()=>{ const i=+inp.dataset.idx; cfg.sla.rules[i].label = inp.value; markDirty(); }));
+  }
+
+  function renderDisplay(){
+    const b = body(); if(!b) return; const app = cfg.app;
+    const cols = ['id','account','amount','due','status','expected','assigned','sla'];
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>Display & Density</h3></div>
+      <div class="cfg-row"><label>Density</label><div><label><input type="radio" name="dens" value="comfortable" ${app.density!=='compact'?'checked':''}> Comfortable</label> &nbsp; <label><input type="radio" name="dens" value="compact" ${app.density==='compact'?'checked':''}> Compact</label></div></div>
+      <div class="cfg-row"><label>Visible Columns</label><div>${cols.map(c=>`<label style=\"margin-right:10px\"><input type=\"checkbox\" data-col value=\"${c}\" ${app.table.visibleColumns.includes(c)?'checked':''}> ${c}</label>`).join('')}</div></div>
+      <div class="cfg-row"><label>Default Sort</label><div><select id="sortField">${cols.map(c=>`<option ${app.table.defaultSort.field===c?'selected':''}>${c}</option>`).join('')}</select> <select id="sortDir"><option ${app.table.defaultSort.dir==='asc'?'selected':''}>asc</option><option ${app.table.defaultSort.dir==='desc'?'selected':''}>desc</option></select></div></div>
+    </div>`;
+    b.querySelectorAll('input[name="dens"]').forEach(r=> r.addEventListener('change', ()=>{ app.density = b.querySelector('input[name="dens"]:checked').value; markDirty(); }));
+    b.querySelectorAll('[data-col]').forEach(cb=> cb.addEventListener('change', ()=>{
+      const set = new Set(app.table.visibleColumns); if(cb.checked) set.add(cb.value); else set.delete(cb.value); app.table.visibleColumns = Array.from(set); markDirty();
+    }));
+    b.querySelector('#sortField')?.addEventListener('change', ()=>{ app.table.defaultSort.field = b.querySelector('#sortField').value; markDirty(); });
+    b.querySelector('#sortDir')?.addEventListener('change', ()=>{ app.table.defaultSort.dir = b.querySelector('#sortDir').value; markDirty(); });
+  }
+
+  function renderIO(){
+    const b = body(); if(!b) return; const json = JSON.stringify(cfg, null, 2);
+    b.innerHTML = `<div class="panel"><div class="panel-header"><h3>Import / Export</h3></div>
+      <div class="cfg-grid">
+        <div><button class="mini-btn" id="cfgExport">Export JSON</button></div>
+        <textarea id="cfgPaste" rows="10" style="width:100%" placeholder="Paste config JSON here to import"></textarea>
+        <div><button class="mini-btn" id="cfgImport">Import</button></div>
+      </div>
+    </div>`;
+    b.querySelector('#cfgExport')?.addEventListener('click', ()=>{ const blob=new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='collections_config.json'; a.click(); URL.revokeObjectURL(a.href); });
+    b.querySelector('#cfgImport')?.addEventListener('click', ()=>{ try{ const obj=JSON.parse(b.querySelector('#cfgPaste').value||'{}'); cfg = setCfg(obj); dirty=false; saveBanner()?.style && (saveBanner().style.display='none'); alert('Imported configuration'); }catch(e){ alert('Invalid JSON'); } });
+  }
+
+  function renderPage(page){ if(!panel()) return; if(page==='statuses') renderStatuses(); if(page==='templates') renderTemplates(); if(page==='tags') renderTags(); if(page==='sla') renderSla(); if(page==='display') renderDisplay(); if(page==='io') renderIO(); }
+
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('#recvCfgSave'); if(btn){ cfg = setCfg(cfg); dirty=false; saveBanner()?.style && (saveBanner().style.display='none'); }
+    const disc = e.target.closest('#recvCfgDiscard'); if(disc){ cfg = getCfg(); dirty=false; saveBanner()?.style && (saveBanner().style.display='none'); renderNav(); }
+  });
+
+  // boot when panel exists (after partial injection)
+  const boot = ()=>{ if(panel()) renderNav(); };
+  if(panel()) boot();
+  document.addEventListener('subtab:changed', (e)=>{ if((e.detail?.id||'')==='recv-config') boot(); });
+})();
+  function createWidgetEl(w){
+    const id = w.id; const el = document.createElement('div');
+    el.className = `widget-card size-${w.size||'xs'}`; el.dataset.id=id; el.dataset.type=w.type; el.dataset.size=w.size||'xs'; el.dataset.orient=w.orient||'';
+    applySpans(el);
+    el.innerHTML = `<div class=\"widget-head\"><div class=\"widget-title\"><svg class=\"widget-glyph\" viewBox=\"0 0 24 24\"><use href=\"${iconFor(w.type)}\"/></svg>${titleFor(w.type)}</div><div class=\"widget-actions\"><button class=\"mini-btn\" data-open-settings>Settings</button><button class=\"mini-btn\" data-size>Size</button></div></div><div class=\"widget-body\">${renderBody(w.type,id)}</div>`;
+    return el;
+  }
+
+  let layout; try{ layout = JSON.parse(localStorage.getItem(LS_KEY)||'null'); } catch { layout=null; }
+  if(!Array.isArray(layout) || layout.length===0){ layout = [ {id:uid(), type:'kpi', size:'xs'}, {id:uid(), type:'metrics', size:'s'}, {id:uid(), type:'notes', size:'xs'} ]; }
+  grid.innerHTML=''; layout.forEach(w=>{ if(!w.orient) w.orient=defaultOrientFor(w.size)||''; grid.appendChild(createWidgetEl(w)); });
+
+  function saveLayout(){ const items = Array.from(grid.querySelectorAll('.widget-card')).map(el=>({id:el.dataset.id, type:el.dataset.type, size:el.dataset.size, orient:el.dataset.orient||''})); localStorage.setItem(LS_KEY, JSON.stringify(items)); }
+
+  function setEditing(on){
+    const onb = !!on;
+    grid.classList.toggle('is-editing', onb);
+    // Toggle both global and scoped classes so CSS visuals work
+    document.body.classList.toggle('widgets-editing', onb);
+    document.body.classList.toggle(`widgets-editing--${scope}`, onb);
+    if (addBtn) { addBtn.disabled = !onb; addBtn.title = onb ? 'Add Widget' : 'Add Widget (edit mode only)'; }
+    if (editBtn) { editBtn.classList.toggle('active', onb); editBtn.textContent = onb ? '✓' : '✎'; editBtn.title = onb ? 'Done' : 'Customize Widgets'; }
+    if (badge) badge.setAttribute('aria-hidden', onb ? 'false' : 'true');
+    grid.querySelectorAll('.widget-card').forEach(el=>{ el.setAttribute('draggable', onb ? 'true' : 'false'); el.tabIndex = onb ? 0 : -1; });
+  }
+  setEditing(false);
+  editBtn.addEventListener('click', ()=> setEditing(!grid.classList.contains('is-editing')));
+  addBtn.addEventListener('click', ()=>{
+    if (!grid.classList.contains('is-editing')) { setEditing(true); }
+    if (sideGallery){ sideGallery.classList.remove('is-hidden'); sideGallery.setAttribute('aria-hidden','false'); document.body.classList.add('widgets-gallery-open'); }
+  });
+  document.getElementById('widgetGalleryClose')?.addEventListener('click', ()=>{ if(sideGallery){ sideGallery.classList.add('is-hidden'); document.body.classList.remove('widgets-gallery-open'); } });
+  if (sideGallery){ sideGallery.addEventListener('click', (e)=>{ const btn=e.target.closest('[data-add-widget]'); if(!btn) return; const type=btn.getAttribute('data-add-widget'); const data={id:uid(), type, size:'s', orient: defaultOrientFor('s')||'landscape'}; const el=createWidgetEl(data); grid.appendChild(el); saveLayout(); setEditing(true); }); }
+
+  grid.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-size]'); if(btn){ const card = btn.closest('.widget-card'); if(!card) return; const sizes=['xs','s','m','l','xl','xxl']; const cur=(card.dataset.size||'xs').toLowerCase(); const idx=(sizes.indexOf(cur)+1)%sizes.length; card.classList.remove('size-'+cur); const ns=sizes[idx]; card.classList.add('size-'+ns); card.dataset.size=ns; if(['xs','m','xxl'].includes(ns)) card.dataset.orient=''; applySpans(card); saveLayout(); return; }
+    const setBtn2 = e.target.closest('[data-open-settings]'); if(setBtn2){ const card = setBtn2.closest('.widget-card'); if(!card) return; if (typeof openSettings === 'function') openSettings(setBtn2, card); }
+  });
+
+  // Simple drag to reorder
+  let dragging=null; grid.addEventListener('dragstart', e=>{ if(!grid.classList.contains('is-editing')) return e.preventDefault(); dragging=e.target.closest('.widget-card'); if(dragging){ e.dataTransfer.setData('text/plain', dragging.dataset.id); dragging.classList.add('dragging'); } });
+  grid.addEventListener('dragend', ()=>{ if(dragging){ dragging.classList.remove('dragging'); dragging=null; saveLayout(); } });
+  grid.addEventListener('dragover', e=>{ if(!grid.classList.contains('is-editing')) return; e.preventDefault(); const after=[...grid.querySelectorAll('.widget-card:not(.dragging)')].find(el=> e.clientY <= el.getBoundingClientRect().top + el.offsetHeight/2 ); const card=dragging; if(!card) return; if(after==null) grid.appendChild(card); else grid.insertBefore(card, after); });
+
+  // Persist notes per-scope
+  grid.querySelectorAll('.notes-area').forEach(ta=>{ const key=ta.dataset.notesKey; try{ ta.value = localStorage.getItem(key)||''; }catch{} ta.addEventListener('input', ()=>{ try{ localStorage.setItem(key, ta.value||''); }catch{} }); });
 }
