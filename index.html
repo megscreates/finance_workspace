@@ -97,11 +97,12 @@
           <a class="nav-subitem" data-subtab-jump="dash-tasks">Tasks</a>
           <a class="nav-subitem" data-subtab-jump="dash-messages">Messages</a>
           <a class="nav-subitem" data-subtab-jump="dash-calendar">Calendar</a>
-          <a class="nav-subitem" data-subtab-jump="dash-reports" data-perm="viewReports" data-flag="advancedReporting">Reports</a>
+          <a class="nav-subitem" data-subtab-jump="dash-reports" data-perm="viewReports"
+            data-flag="advancedReporting">Reports</a>
           <a class="nav-subitem" data-subtab-jump="dash-search">Search</a>
         </div>
-        
-        
+
+
         <!-- Cash Flow moved after Payables -->
         <a class="nav-item" href="#">
           <span class="icon"><svg viewBox="0 0 24 24">
@@ -117,16 +118,19 @@
           <a class="nav-subitem" data-subtab-jump="cf-transactions">Transactions</a>
           <a class="nav-subitem" data-subtab-jump="cf-requests">Requests</a>
           <a class="nav-subitem" data-subtab-jump="cf-tasks">Tasks</a>
-          <a class="nav-subitem" data-subtab-jump="cf-reports" data-perm="viewReports" data-flag="advancedReporting">Reports</a>
-          
+          <a class="nav-subitem" data-subtab-jump="cf-reports" data-perm="viewReports"
+            data-flag="advancedReporting">Reports</a>
+
         </div>
         <!-- Collections (new main section) -->
         <a class="nav-item" href="#">
-          <span class="icon"><svg viewBox="0 0 24 24"><use href="#i-stats"/></svg></span>
+          <span class="icon"><svg viewBox="0 0 24 24">
+              <use href="#i-stats" />
+            </svg></span>
           <span>Collections</span>
         </a>
         <div class="nav-subgroup is-hidden" aria-label="Collections subtabs">
-          <a class="nav-subitem is-current" data-subtab-jump="col-overview">Overview</a>
+          <!-- Overview handled by main tab; removed from leftnav -->
           <a class="nav-subitem" data-subtab-jump="col-assign">Assignments</a>
           <a class="nav-subitem" data-subtab-jump="col-outgoing">Outgoing</a>
           <a class="nav-subitem" data-subtab-jump="col-risk">Risk Status</a>
@@ -140,7 +144,7 @@
           <span>Projects</span>
         </a>
         <div class="nav-subgroup is-hidden" aria-label="Projects subtabs">
-          <a class="nav-subitem is-current" data-subtab-jump="projects-overview">Overview</a>
+          <!-- Overview handled by main tab; removed from leftnav -->
           <a class="nav-subitem" data-subtab-jump="projects-poc">POC</a>
           <a class="nav-subitem" data-subtab-jump="projects-billing">Billing</a>
           <a class="nav-subitem" data-subtab-jump="projects-timeline">Timeline</a>
@@ -153,7 +157,7 @@
           <span>Service</span>
         </a>
         <div class="nav-subgroup is-hidden" aria-label="Service subtabs">
-          <a class="nav-subitem is-current" data-subtab-jump="service-overview">Overview</a>
+          <!-- Overview handled by main tab; removed from leftnav -->
           <a class="nav-subitem" data-subtab-jump="service-wip">WIP</a>
           <a class="nav-subitem" data-subtab-jump="service-billing">Billing</a>
           <a class="nav-subitem" data-subtab-jump="service-review">Review</a>
@@ -212,39 +216,65 @@
       <div id="widgetGallerySide" class="sidebar-gallery is-hidden" aria-hidden="true" aria-label="Widget Gallery">
         <header class="sidebar-gallery-head">
           <h3>Widgets</h3>
-          <button class="icon-btn" id="widgetGalleryClose" title="Close"><svg viewBox="0 0 24 24"><use href="#i-report"/></svg></button>
+          <button class="icon-btn" id="widgetGalleryClose" title="Close"><svg viewBox="0 0 24 24">
+              <use href="#i-report" />
+            </svg></button>
         </header>
         <div class="sidebar-gallery-content">
           <div class="gallery-section">
             <h4>Data</h4>
             <div class="widget-gallery">
-              <button class="gallery-item" data-add-widget="kpi"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-stats"/></svg><span>KPI</span></button>
-              <button class="gallery-item" data-add-widget="metrics"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-growth"/></svg><span>Metrics</span></button>
+              <button class="gallery-item" data-add-widget="kpi"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-stats" />
+                </svg><span>KPI</span></button>
+              <button class="gallery-item" data-add-widget="metrics"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-growth" />
+                </svg><span>Metrics</span></button>
             </div>
           </div>
           <div class="gallery-section">
             <h4>Communication</h4>
             <div class="widget-gallery">
-              <button class="gallery-item" data-add-widget="email"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-mail"/></svg><span>Email</span></button>
-              <button class="gallery-item" data-add-widget="messages"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-mail"/></svg><span>Messages</span></button>
-              <button class="gallery-item" data-add-widget="announcements"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-report"/></svg><span>Announcements</span></button>
+              <button class="gallery-item" data-add-widget="email"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-mail" />
+                </svg><span>Email</span></button>
+              <button class="gallery-item" data-add-widget="messages"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-mail" />
+                </svg><span>Messages</span></button>
+              <button class="gallery-item" data-add-widget="announcements"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-report" />
+                </svg><span>Announcements</span></button>
             </div>
           </div>
           <div class="gallery-section">
             <h4>Productivity</h4>
             <div class="widget-gallery">
-              <button class="gallery-item" data-add-widget="tasks"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-settings"/></svg><span>Tasks</span></button>
-              <button class="gallery-item" data-add-widget="reminders"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-settings"/></svg><span>Reminders</span></button>
-              <button class="gallery-item" data-add-widget="calendar"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-life"/></svg><span>Calendar</span></button>
-              <button class="gallery-item" data-add-widget="notes"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-report"/></svg><span>Quick Notes</span></button>
+              <button class="gallery-item" data-add-widget="tasks"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-settings" />
+                </svg><span>Tasks</span></button>
+              <button class="gallery-item" data-add-widget="reminders"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-settings" />
+                </svg><span>Reminders</span></button>
+              <button class="gallery-item" data-add-widget="calendar"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-life" />
+                </svg><span>Calendar</span></button>
+              <button class="gallery-item" data-add-widget="notes"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-report" />
+                </svg><span>Quick Notes</span></button>
             </div>
           </div>
           <div class="gallery-section">
             <h4>Utilities</h4>
             <div class="widget-gallery">
-              <button class="gallery-item" data-add-widget="quicklinks"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-report"/></svg><span>Quick Links</span></button>
-              <button class="gallery-item" data-add-widget="calculator"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-settings"/></svg><span>Calculator</span></button>
-              <button class="gallery-item" data-add-widget="weather"><svg class="glyph" viewBox="0 0 24 24"><use href="#i-life"/></svg><span>Weather</span></button>
+              <button class="gallery-item" data-add-widget="quicklinks"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-report" />
+                </svg><span>Quick Links</span></button>
+              <button class="gallery-item" data-add-widget="calculator"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-settings" />
+                </svg><span>Calculator</span></button>
+              <button class="gallery-item" data-add-widget="weather"><svg class="glyph" viewBox="0 0 24 24">
+                  <use href="#i-life" />
+                </svg><span>Weather</span></button>
             </div>
           </div>
         </div>
@@ -252,8 +282,13 @@
       <!-- Hidden Columns Config panel (replaces nav when open) -->
       <div id="colsConfigSide" class="sidebar-gallery is-hidden" aria-hidden="true" aria-label="Column Settings">
         <header class="sidebar-gallery-head">
-          <h3 style="display:flex; align-items:center; gap:8px"><svg class="glyph" viewBox="0 0 24 24" style="width:18px; height:18px"><use href="#i-settings"/></svg> Column Settings</h3>
-          <button class="icon-btn" id="colsClose" title="Close"><svg viewBox="0 0 24 24"><use href="#i-report"/></svg></button>
+          <h3 style="display:flex; align-items:center; gap:8px"><svg class="glyph" viewBox="0 0 24 24"
+              style="width:18px; height:18px">
+              <use href="#i-settings" />
+            </svg> Column Settings</h3>
+          <button class="icon-btn" id="colsClose" title="Close"><svg viewBox="0 0 24 24">
+              <use href="#i-report" />
+            </svg></button>
         </header>
         <div class="cols-toolbar" style="display:flex; gap:8px; margin-bottom:8px">
           <button class="mini-btn" id="colsSwap">Swap</button>
@@ -273,8 +308,10 @@
           <div class="search">
             <input id="globalSearch" placeholder="Search" />
           </div>
-          
-          <button class="icon-btn" title="Notifications"><svg viewBox="0 0 24 24"><use href="#i-life"/></svg></button>
+
+          <button class="icon-btn" title="Notifications"><svg viewBox="0 0 24 24">
+              <use href="#i-life" />
+            </svg></button>
           <div class="avatar" title="Profile">L</div>
         </div>
       </header>
@@ -284,110 +321,132 @@
         <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-tasks">Tasks</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-messages">Messages</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-calendar">Calendar</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-reports" data-perm="viewReports" data-flag="advancedReporting">Reports</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-reports" data-perm="viewReports"
+          data-flag="advancedReporting">Reports</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="dash-search">Search</button>
       </nav>
 
-<!-- Subtab panels (example for the Dashboard section) -->
-<section class="subtab-panel" data-subtab-panel="dash-overview">
-  <div class="widget-toolbar">
-    <div class="left">
-      <button class="icon-btn" id="widgetsEditBtn" title="Customize Widgets">✎</button>
-      <span class="edit-badge" id="widgetsEditBadge" aria-hidden="true">Editing</span>
-    </div>
-    <div class="right">
-      <button class="icon-btn" id="widgetsAddBtn" title="Add Widget">＋</button>
-    </div>
-  </div>
-
-  <section class="widget-grid" id="widgetGrid" aria-live="polite"></section>
-
-  <!-- Sidebar Gallery (replaces left nav when adding widgets) -->
-  
-</section>
-
-<!-- Dashboard: Tasks -->
-<section class="subtab-panel is-hidden" data-subtab-panel="dash-tasks">
-  <div class="panel span-2">
-    <div class="panel-header"><h2>My Tasks</h2><span class="muted">Today</span></div>
-    <ul id="tasksList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
-  </div>
-  <div class="panel">
-    <div class="panel-header"><h2>Quick Add</h2></div>
-    <input id="taskInput" placeholder="Add a task and press Enter" style="width:100%; padding:10px; border-radius:10px; border:1px solid #e7e7f3"/>
-  </div>
-</section>
-
-<!-- Dashboard: Messages overview -->
-<section class="subtab-panel is-hidden" data-subtab-panel="dash-messages">
-  <div class="panel span-2">
-    <div class="panel-header"><h2>Messages</h2><span class="muted">Gmail • Chat • Slack</span></div>
-    <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:16px">
-      <div class="panel" data-service="gmail">
-        <div class="panel-header"><h3>Gmail</h3></div>
-        <div class="service-content">
-          <p class="muted">Connect your Google account to view inbox.</p>
-          <button class="icon-btn" data-connect="gmail">Connect</button>
+      <!-- Subtab panels (example for the Dashboard section) -->
+      <section class="subtab-panel" data-subtab-panel="dash-overview">
+        <div class="widget-toolbar">
+          <div class="left">
+            <button class="icon-btn" id="widgetsEditBtn" title="Customize Widgets">✎</button>
+            <span class="edit-badge" id="widgetsEditBadge" aria-hidden="true">Editing</span>
+          </div>
+          <div class="right">
+            <button class="icon-btn" id="widgetsAddBtn" title="Add Widget">＋</button>
+          </div>
         </div>
-      </div>
-      <div class="panel" data-service="gchat">
-        <div class="panel-header"><h3>Google Chat</h3></div>
-        <div class="service-content">
-          <p class="muted">See recent threads and DMs.</p>
-          <button class="icon-btn" data-connect="gchat">Connect</button>
+
+        <section class="widget-grid" id="widgetGrid" aria-live="polite"></section>
+
+        <!-- Sidebar Gallery (replaces left nav when adding widgets) -->
+
+      </section>
+
+      <!-- Dashboard: Tasks -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="dash-tasks">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>My Tasks</h2><span class="muted">Today</span>
+          </div>
+          <ul id="tasksList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
         </div>
-      </div>
-      <div class="panel" data-service="slack">
-        <div class="panel-header"><h3>Slack</h3></div>
-        <div class="service-content">
-          <p class="muted">Unread channels and mentions.</p>
-          <button class="icon-btn" data-connect="slack">Connect</button>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Quick Add</h2>
+          </div>
+          <input id="taskInput" placeholder="Add a task and press Enter"
+            style="width:100%; padding:10px; border-radius:10px; border:1px solid #e7e7f3" />
         </div>
-      </div>
-    </div>
-  </div>
-</section>
+      </section>
 
-<!-- Dashboard: Calendar -->
-<section class="subtab-panel is-hidden" data-subtab-panel="dash-calendar">
-  <div class="panel span-2">
-    <div class="panel-header"><h2>Calendar</h2><span class="muted">Google Calendar</span></div>
-    <div id="calendarConnect">
-      <p class="muted">Connect Google Calendar to show events.</p>
-      <button class="icon-btn" data-connect="gcal">Connect</button>
-    </div>
-    <ul id="calendarList" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px"></ul>
-  </div>
-</section>
+      <!-- Dashboard: Messages overview -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="dash-messages">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Messages</h2><span class="muted">Gmail • Chat • Slack</span>
+          </div>
+          <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap:16px">
+            <div class="panel" data-service="gmail">
+              <div class="panel-header">
+                <h3>Gmail</h3>
+              </div>
+              <div class="service-content">
+                <p class="muted">Connect your Google account to view inbox.</p>
+                <button class="icon-btn" data-connect="gmail">Connect</button>
+              </div>
+            </div>
+            <div class="panel" data-service="gchat">
+              <div class="panel-header">
+                <h3>Google Chat</h3>
+              </div>
+              <div class="service-content">
+                <p class="muted">See recent threads and DMs.</p>
+                <button class="icon-btn" data-connect="gchat">Connect</button>
+              </div>
+            </div>
+            <div class="panel" data-service="slack">
+              <div class="panel-header">
+                <h3>Slack</h3>
+              </div>
+              <div class="service-content">
+                <p class="muted">Unread channels and mentions.</p>
+                <button class="icon-btn" data-connect="slack">Connect</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
-<!-- Dashboard: Reports -->
-<section class="subtab-panel is-hidden" data-subtab-panel="dash-reports">
-  <div class="panel span-2">
-    <div class="panel-header"><h2>Reports</h2></div>
-    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px">
-      <input id="reportName" placeholder="New report name" style="flex:1; padding:10px; border-radius:10px; border:1px solid #e7e7f3"/>
-      <button id="createReportBtn" class="icon-btn" title="Create">＋</button>
-    </div>
-    <ul id="reportsList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
-  </div>
-</section>
+      <!-- Dashboard: Calendar -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="dash-calendar">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Calendar</h2><span class="muted">Google Calendar</span>
+          </div>
+          <div id="calendarConnect">
+            <p class="muted">Connect Google Calendar to show events.</p>
+            <button class="icon-btn" data-connect="gcal">Connect</button>
+          </div>
+          <ul id="calendarList" style="list-style:none; padding:0; margin:12px 0 0; display:grid; gap:8px"></ul>
+        </div>
+      </section>
 
-<!-- Dashboard: Search -->
-<section class="subtab-panel is-hidden" data-subtab-panel="dash-search">
-  <div class="panel span-2">
-    <div class="panel-header"><h2>Global Search</h2></div>
-    <input id="dashSearch" placeholder="Search across data (orders, debtors, etc)" style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3"/>
-    <p class="muted">Results update live across modules.</p>
-    <div id="dashSearchResults" style="margin-top:12px; display:grid; gap:8px"></div>
-  </div>
-</section>
+      <!-- Dashboard: Reports -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="dash-reports">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Reports</h2>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px">
+            <input id="reportName" placeholder="New report name"
+              style="flex:1; padding:10px; border-radius:10px; border:1px solid #e7e7f3" />
+            <button id="createReportBtn" class="icon-btn" title="Create">＋</button>
+          </div>
+          <ul id="reportsList" style="list-style:none; padding:0; margin:0; display:grid; gap:8px"></ul>
+        </div>
+      </section>
 
-      
+      <!-- Dashboard: Search -->
+      <section class="subtab-panel is-hidden" data-subtab-panel="dash-search">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Global Search</h2>
+          </div>
+          <input id="dashSearch" placeholder="Search across data (orders, debtors, etc)"
+            style="width:100%; padding:12px; border-radius:12px; border:1px solid #e7e7f3" />
+          <p class="muted">Results update live across modules.</p>
+          <div id="dashSearchResults" style="margin-top:12px; display:grid; gap:8px"></div>
+        </div>
+      </section>
 
-      
-      
-      
-      
+
+
+
+
+
+
 
       <!-- Cash Flow subnav -->
       <nav class="subnav is-hidden" role="tablist" aria-label="Cash Flow subtabs">
@@ -398,17 +457,26 @@
         <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-transactions">Transactions</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-requests">Requests</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-tasks">Tasks</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-reports" data-perm="viewReports" data-flag="advancedReporting">Reports</button>
-        
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="cf-reports" data-perm="viewReports"
+          data-flag="advancedReporting">Reports</button>
+
       </nav>
       <!-- Cash Flow panels (inlined) -->
-      <section class="subtab-panel is-hidden" data-subtab-panel="cf-overview"><div class="panel span-2"><div class="panel-header"><h2>Cash Flow Overview</h2></div><p class="muted">Loaded from partials/cashflow.html</p></div></section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="cf-overview">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Cash Flow Overview</h2>
+          </div>
+          <p class="muted">Loaded from partials/cashflow.html</p>
+        </div>
+      </section>
 
-      
+
 
       <!-- Projects subnav -->
       <nav class="subnav is-hidden" role="tablist" aria-label="Projects subtabs">
-        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="projects-overview">Overview</button>
+        <button class="subtab is-active" role="tab" aria-selected="true"
+          data-subtab="projects-overview">Overview</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="projects-poc">POC</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="projects-billing">Billing</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="projects-timeline">Timeline</button>
@@ -416,24 +484,50 @@
       </nav>
       <!-- Projects panels (inlined) -->
       <section class="subtab-panel is-hidden" data-subtab-panel="projects-overview">
-        <div class="panel"><div class="panel-header"><h2>Projects Overview</h2></div><p class="muted">Summary of project KPIs.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Projects Overview</h2>
+          </div>
+          <p class="muted">Summary of project KPIs.</p>
+        </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="projects-poc">
-        <div class="panel"><div class="panel-header"><h2>Proof of Concept</h2></div><p class="muted">POC tracking.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Proof of Concept</h2>
+          </div>
+          <p class="muted">POC tracking.</p>
+        </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="projects-billing">
-        <div class="panel"><div class="panel-header"><h2>Billing</h2></div><p class="muted">Billing integration for projects.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Billing</h2>
+          </div>
+          <p class="muted">Billing integration for projects.</p>
+        </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="projects-timeline">
-        <div class="panel"><div class="panel-header"><h2>Timeline</h2></div><p class="muted">Project schedules.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Timeline</h2>
+          </div>
+          <p class="muted">Project schedules.</p>
+        </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="projects-requests">
-        <div class="panel"><div class="panel-header"><h2>Requests</h2></div><p class="muted">Incoming work requests.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Requests</h2>
+          </div>
+          <p class="muted">Incoming work requests.</p>
+        </div>
       </section>
 
       <!-- Service subnav -->
       <nav class="subnav is-hidden" role="tablist" aria-label="Service subtabs">
-        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="service-overview">Overview</button>
+        <button class="subtab is-active" role="tab" aria-selected="true"
+          data-subtab="service-overview">Overview</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="service-wip">WIP</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="service-billing">Billing</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="service-tm">T&M</button>
@@ -442,92 +536,258 @@
       </nav>
       <!-- Service panels (inlined) -->
       <section class="subtab-panel is-hidden" data-subtab-panel="service-overview">
-        <div class="panel"><div class="panel-header"><h2>Service Overview</h2></div><p class="muted">High-level metrics.</p></div>
-      </section>
-      <section class="subtab-panel is-hidden" data-subtab-panel="service-wip">
-        <div class="panel span-2">
-          <div class="panel-header" style="align-items:center; justify-content:space-between"><div style="display:flex; align-items:center; gap:10px"><h2>WIP</h2><input id="svc-wip-search" class="input" placeholder="Search jobs, channels, scope…"/></div><div style="display:flex; gap:8px"><button class="btn" id="svc-wip-sim">Simulate Slack Form</button><button class="btn">Drag cards &amp; columns</button></div></div>
-          <div class="kanban">
-            <div class="kcol"><div class="khead">Pending</div><div class="kbody" id="kcol-pending"></div></div>
-            <div class="kcol"><div class="khead">Sales Review</div><div class="kbody" id="kcol-review"></div></div>
-            <div class="kcol"><div class="khead">Approved</div><div class="kbody" id="kcol-approved"></div></div>
-            <div class="kcol"><div class="khead">Paid</div><div class="kbody" id="kcol-paid"></div></div>
-            <div class="kcol"><div class="khead">Rejected</div><div class="kbody" id="kcol-rejected"></div></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Service Overview</h2>
           </div>
+          <p class="muted">High-level metrics.</p>
         </div>
       </section>
-      <section class="subtab-panel is-hidden" data-subtab-panel="service-billing">
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-wip" id="svc-wip-panel">
         <div class="panel span-2">
-          <div class="review-toolbar"><div style="display:flex; align-items:center; gap:10px"><h2>Billing</h2><input id="svc-bill-filter" class="input" placeholder="Filter…"/></div><div style="display:flex; gap:8px"><button class="btn" id="svc-bill-remind">Remind Selected</button></div></div>
-          <div class="review">
-            <div class="panel">
-              <div class="panel-header"><h3>Queue</h3></div>
-              <div id="svc-review-list" class="list"></div>
+          <div class="panel-header" style="align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+              <h2>WIP</h2>
+              <input id="wip-search" class="input" placeholder="Search jobs, channels, scope…" style="width:320px" />
+              <!-- Saved views -->
+              <select id="view-select" class="input" title="Saved views">
+                <option value="">Views…</option>
+              </select>
+              <input id="view-name" class="input" placeholder="New view name" style="width:160px" />
+              <button class="btn" id="view-save">Save View</button>
+              <button class="btn" id="view-del">Delete View</button>
             </div>
-            <div class="panel">
-              <div class="panel-header" style="justify-content:space-between; align-items:center"><h3>Details</h3><div style="display:flex; gap:8px"><button class="btn" id="svc-exp-csv">Export CSV</button><button class="btn" id="svc-preview">Preview</button><button class="btn" id="svc-open-slack">Open Slack</button><button class="btn primary" id="svc-approve">Apply &amp; Approve</button><button class="btn bad" id="svc-reject">Reject</button></div></div>
-              <div id="svc-review-detail"></div>
+
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <button class="btn" id="wip-new">Simulate Slack Form</button>
+
+              <!-- Bulk move -->
+              <select id="wip-move-target" class="input" title="Bulk move filtered">
+                <option value="Sales Review">Move filtered → Sales Review</option>
+                <option value="Approved">Move filtered → Approved</option>
+                <option value="Paid">Move filtered → Paid</option>
+                <option value="Rejected">Move filtered → Rejected</option>
+                <option value="Pending">Move filtered → Pending</option>
+              </select>
+              <button class="btn" id="wip-move">Go</button>
+
+              <div class="badge">Drag cards &amp; columns • Use ←/→ to move</div>
+            </div>
+          </div>
+
+          <!-- Kanban board (columns + cards render here) -->
+          <div class="kanban" id="wip-board" role="list" aria-label="Work in progress lanes"></div>
+        </div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-billing" id="svc-review-panel">
+        <div class="panel span-2">
+          <div class="panel-header" style="align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap">
+              <h2>Billing</h2>
+              <input id="rev-search" class="input" placeholder="Filter…" style="width:320px" />
+              <!-- Saved views -->
+              <select id="revview-select" class="input" title="Saved views">
+                <option value="">Views…</option>
+              </select>
+              <input id="revview-name" class="input" placeholder="New view" style="width:140px" />
+              <button class="btn" id="revview-save">Save</button>
+              <button class="btn" id="revview-del">Delete</button>
+            </div>
+
+            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+              <button class="btn" id="rev-apply-filtered">Apply edits → filtered</button>
+              <button class="btn" id="rev-apply-selected">Apply edits → selected</button>
+              <button class="btn" id="rev-compose">Compose to Slack</button>
+              <button class="btn" id="rev-remind">Remind Selected</button>
+              <label class="sml" style="display:flex; align-items:center; gap:6px">
+                <input type="checkbox" id="rev-changes-only" /> Show changes only
+              </label>
+            </div>
+          </div>
+
+          <div class="review" style="display:grid; grid-template-columns:340px 1fr; gap:12px">
+            <!-- Left list -->
+            <div id="rev-list" class="panel" style="overflow:auto"></div>
+
+            <!-- Right detail -->
+            <div id="rev-detail" class="panel">
+              <em>Select an invoice →</em>
             </div>
           </div>
         </div>
       </section>
-      <section class="subtab-panel is-hidden" data-subtab-panel="service-tm">
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-tm" id="svc-tm-panel">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Time &amp; Materials</h2></div>
-          <div class="tm-grid">
-            <div class="panel"><div class="panel-header"><h3>Thread</h3></div><div class="tm-thread" id="tm-thread"></div></div>
-            <div class="panel"><div class="panel-header"><h3>Actions</h3></div><div id="tm-actions"></div></div>
+          <div class="panel-header" style="align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px">
+            <h2>T&amp;M Hub</h2>
+            <div class="badge">Slack Form Output &middot; Materials Issue CSV</div>
+          </div>
+
+          <div class="tm-grid" style="display:grid; grid-template-columns:1fr 320px; gap:12px">
+            <!-- Left: entries table -->
+            <div>
+              <div class="panel-header"
+                style="margin:0 0 8px 0; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                  <input id="tm-search" class="input" placeholder="Filter T&M entries…" style="width:280px" />
+                  <button class="btn" id="tm-new">Simulate T&amp;M Entry</button>
+                  <button class="btn" id="tm-compose">Compose to Slack</button>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap">
+                  <button class="btn primary" id="tm-export">Export Selected to CSV</button>
+                  <span class="sml" id="tm-totals">—</span>
+                </div>
+              </div>
+
+              <table class="tableP" id="tm-table">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="tm-all" /></th>
+                    <th>Ticket</th>
+                    <th>Channel</th>
+                    <th>Techs</th>
+                    <th>Drive</th>
+                    <th>Labor</th>
+                    <th>Materials</th>
+                    <th>Scope</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="8" id="tm-footer" class="sml">Totals: —</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <!-- Right: thread + activity -->
+            <div>
+              <div class="panel">
+                <h3 style="margin:0 0 8px">Slack Thread</h3>
+                <div class="tm-thread" id="tm-thread"></div>
+                <div style="display:grid; gap:8px; margin-top:8px">
+                  <textarea id="tm-msg" class="input" rows="3" placeholder="Post a message to thread…"></textarea>
+                  <div style="display:flex; gap:8px; flex-wrap:wrap">
+                    <button class="btn" id="tm-post">Send</button>
+                    <button class="btn" id="tm-ask">Ask for Info</button>
+                    <button class="btn" id="tm-approve">Simulate Approval</button>
+                    <button class="btn" id="tm-reject">Simulate Reject</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel">
+                <h3 style="margin:0 0 8px">Activity</h3>
+                <div id="tm-feed" class="feed"></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
-      <section class="subtab-panel is-hidden" data-subtab-panel="service-pricing">
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-pricing" id="svc-pricing-panel">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Pricing</h2></div>
+          <div class="panel-header">
+            <h2>Pricing</h2>
+          </div>
+
+          <!-- Materials -->
           <div class="panel">
             <h3>Material Price List</h3>
-            <table class="tableP" id="mat-table"><thead><tr><th>SKU</th><th>Description</th><th>Price</th><th>Actions</th></tr></thead><tbody></tbody></table>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <input id="mat-sku" class="input mono" placeholder="SKU">
-              <input id="mat-desc" class="input" placeholder="Description">
-              <input id="mat-price" class="input mono" type="number" step="0.01" placeholder="Price">
-              <button class="mini-btn" id="mat-add">Add/Update</button>
+            <table class="tableP" id="mat-table">
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Description</th>
+                  <th>Price</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+              <input id="mat-sku" class="input mono" placeholder="SKU" />
+              <input id="mat-desc" class="input" placeholder="Description" />
+              <input id="mat-price" class="input mono" type="number" step="0.01" placeholder="Price" />
+              <button class="btn" id="mat-add">Add/Update</button>
             </div>
           </div>
-          <div class="panel" style="margin-top:12px">
-            <h3>Billing Rules</h3>
-            <table class="tableP" id="rule-table"><thead><tr><th>Type</th><th>Key</th><th>SKU</th><th>Price</th><th>Labor/hr</th><th>Drive/hr</th><th>Actions</th></tr></thead><tbody></tbody></table>
-            <div style="display:grid;grid-template-columns:120px 1fr 120px 120px 120px auto;gap:8px;margin-top:8px">
-              <select id="rule-type" class="input"><option value="customer">Customer</option><option value="rep">Sales Rep</option></select>
-              <input id="rule-key" class="input" placeholder="Acme Corp or @rep">
-              <input id="rule-sku" class="input mono" placeholder="SKU or *">
-              <input id="rule-price" class="input mono" type="number" step="0.01" placeholder="Price">
-              <input id="rule-labor" class="input mono" type="number" step="0.01" placeholder="Labor/hr">
-              <input id="rule-drive" class="input mono" type="number" step="0.01" placeholder="Drive/hr">
-              <button class="mini-btn" id="rule-add">Add Rule</button>
+        </div>
+      </section>
+      <section class="subtab-panel is-hidden" data-subtab-panel="service-rules" id="svc-rules-panel">
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>Billing Rules</h2>
+            <div class="muted">Per-customer / per-rep overrides; “*” matches any SKU.</div>
+          </div>
+
+          <div class="panel">
+            <table class="tableP" id="rule-table">
+              <thead>
+                <tr>
+                  <th>Type</th>
+                  <th>Key</th>
+                  <th>SKU</th>
+                  <th>Price</th>
+                  <th>Labor/hr</th>
+                  <th>Drive/hr</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+
+            <div style="display:grid; grid-template-columns:120px 1fr 120px 120px 120px auto; gap:8px; margin-top:8px">
+              <select id="rule-type" class="input">
+                <option value="customer">Customer</option>
+                <option value="rep">Sales Rep</option>
+              </select>
+              <input id="rule-key" class="input" placeholder="Acme Corp or @rep" />
+              <input id="rule-sku" class="input mono" placeholder="SKU or *" />
+              <input id="rule-price" class="input mono" type="number" step="0.01" placeholder="Price" />
+              <input id="rule-labor" class="input mono" type="number" step="0.01" placeholder="Labor/hr" />
+              <input id="rule-drive" class="input mono" type="number" step="0.01" placeholder="Drive/hr" />
+              <button class="btn" id="rule-add">Add Rule</button>
             </div>
-            <div style="display:flex;gap:8px;margin-top:8px">
-              <button class="mini-btn" id="pricing-save">Save</button>
-              <button class="mini-btn" id="pricing-load">Load</button>
-              <button class="mini-btn bad" id="pricing-reset">Reset</button>
+
+            <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap">
+              <button class="btn" id="pricing-save">Save</button>
+              <button class="btn" id="pricing-load">Load</button>
+              <button class="btn bad" id="pricing-reset">Reset</button>
             </div>
           </div>
         </div>
       </section>
       <!-- Inline Invoice Modal for Service Tabs -->
-      <div id="inv-modal"><div class="inv-card"><button class="inv-close">✕</button><div id="inv-body"></div></div></div>
+      <div id="inv-modal">
+        <div class="inv-card"><button class="inv-close">✕</button>
+          <div id="inv-body"></div>
+        </div>
+      </div>
       <section class="subtab-panel is-hidden" data-subtab-panel="service-requests">
-        <div class="panel"><div class="panel-header"><h2>Requests</h2></div><p class="muted">Incoming tickets.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Requests</h2>
+          </div>
+          <p class="muted">Incoming tickets.</p>
+        </div>
       </section>
 
       <!-- Compliance subnav -->
       <nav class="subnav is-hidden" role="tablist" aria-label="Compliance subtabs">
-        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="compliance-overview">Overview</button>
+        <button class="subtab is-active" role="tab" aria-selected="true"
+          data-subtab="compliance-overview">Overview</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="compliance-policies">Policies</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="compliance-audits">Audits</button>
       </nav>
       <!-- Compliance panels (inlined) -->
       <section class="subtab-panel is-hidden" data-subtab-panel="compliance-overview">
-        <div class="panel"><div class="panel-header"><h2>Compliance Overview</h2></div><p class="muted">Loaded from partials/compliance.html</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Compliance Overview</h2>
+          </div>
+          <p class="muted">Loaded from partials/compliance.html</p>
+        </div>
       </section>
 
       <!-- Collections subnav -->
@@ -541,36 +801,80 @@
       <!-- Collections: Overview placeholder (focus on Master) -->
       <section class="subtab-panel is-hidden" data-subtab-panel="col-overview">
         <div class="panel span-2">
-          <div class="panel-header"><h2>AR Collections</h2><span class="muted">Overview coming soon</span></div>
-          <p class="muted" style="padding:10px">We’re focusing on the Master table. This section will return with summaries once Master is finalized.</p>
+          <div class="panel-header">
+            <h2>AR Collections</h2><span class="muted">Overview coming soon</span>
+          </div>
+          <p class="muted" style="padding:10px">We’re focusing on the Master table. This section will return with
+            summaries once Master is finalized.</p>
         </div>
       </section>
       <!-- Collections: Assignments -->
       <section class="subtab-panel is-hidden" data-subtab-panel="col-assign">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Assignments</h2><span class="muted">Workload by collector</span></div>
+          <div class="panel-header">
+            <h2>Assignments</h2><span class="muted">Workload by collector</span>
+          </div>
           <div class="table-wrap">
-            <table class="table"><thead><tr><th>Collector</th><th>Open Invoices</th><th>Total Open</th><th>Overdue</th><th>Promised</th></tr></thead><tbody id="colAssignBody"><tr><td class="muted" colspan="5">Coming soon — assignment breakdown</td></tr></tbody></table>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Collector</th>
+                  <th>Open Invoices</th>
+                  <th>Total Open</th>
+                  <th>Overdue</th>
+                  <th>Promised</th>
+                </tr>
+              </thead>
+              <tbody id="colAssignBody">
+                <tr>
+                  <td class="muted" colspan="5">Coming soon — assignment breakdown</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
       <!-- Collections: Outgoing -->
       <section class="subtab-panel is-hidden" data-subtab-panel="col-outgoing">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Outgoing</h2><span class="muted">Emails, calls, reminders</span></div>
+          <div class="panel-header">
+            <h2>Outgoing</h2><span class="muted">Emails, calls, reminders</span>
+          </div>
           <div style="display:grid; gap:10px">
-            <div class="panel"><div class="panel-header"><h3>Today</h3></div><p class="muted">No scheduled messages.</p></div>
-            <div class="panel"><div class="panel-header"><h3>Queue</h3></div><p class="muted">Queue and batching rules will appear here.</p></div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Today</h3>
+              </div>
+              <p class="muted">No scheduled messages.</p>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Queue</h3>
+              </div>
+              <p class="muted">Queue and batching rules will appear here.</p>
+            </div>
           </div>
         </div>
       </section>
       <!-- Collections: Risk Status -->
       <section class="subtab-panel is-hidden" data-subtab-panel="col-risk">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Risk Status</h2><span class="muted">Signals and thresholds</span></div>
+          <div class="panel-header">
+            <h2>Risk Status</h2><span class="muted">Signals and thresholds</span>
+          </div>
           <div style="display:grid; gap:10px">
-            <div class="panel"><div class="panel-header"><h3>Signals</h3></div><p class="muted">Define risk signals like >60 days, dispute, credit limit, etc.</p></div>
-            <div class="panel"><div class="panel-header"><h3>Accounts by Risk</h3></div><p class="muted">Charts and lists will display here.</p></div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Signals</h3>
+              </div>
+              <p class="muted">Define risk signals like >60 days, dispute, credit limit, etc.</p>
+            </div>
+            <div class="panel">
+              <div class="panel-header">
+                <h3>Accounts by Risk</h3>
+              </div>
+              <p class="muted">Charts and lists will display here.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -580,14 +884,14 @@
           <div class="panel-header" style="align-items:center; justify-content:space-between">
             <h2>Master Data</h2>
             <div class="master-toolbar">
-              <input id="masterSearch" class="ar-input" placeholder="Search all columns"/>
+              <input id="masterSearch" class="ar-input" placeholder="Search all columns" />
               <select id="masterView" class="ar-select" aria-label="Saved views"></select>
               <select id="masterDefaultView" class="ar-select" aria-label="Default view"></select>
-              <label class="mini-toggle"><input type="checkbox" id="masterAliasGlobalToggle"/> Use Aliases</label>
-              <label class="mini-toggle">Aged On: <input type="date" id="masterAgedOn"/></label>
+              <label class="mini-toggle"><input type="checkbox" id="masterAliasGlobalToggle" /> Use Aliases</label>
+              <label class="mini-toggle">Aged On: <input type="date" id="masterAgedOn" /></label>
               <button class="mini-btn" id="masterSaveView">Save View</button>
               <button class="mini-btn" id="masterSaveViewAs">Save As…</button>
-              <label class="mini-toggle"><input type="checkbox" id="masterDetailsToggle"/> Details</label>
+              <label class="mini-toggle"><input type="checkbox" id="masterDetailsToggle" /> Details</label>
               <button class="mini-btn" id="masterConfigureBtn">Configure</button>
             </div>
           </div>
@@ -610,14 +914,20 @@
           <div id="masterColsModal" class="modal is-hidden" role="dialog" aria-modal="true" aria-labelledby="colsTitle">
             <div class="modal-backdrop" data-close-modal></div>
             <div class="modal-panel panel" style="width:860px; max-width:calc(100vw - 40px)">
-              <div class="panel-header"><h3 id="colsTitle">Column Settings</h3><div><button class="mini-btn" data-close-modal>Close</button></div></div>
-              <div class="panel-body" style="display:grid; grid-template-columns: 260px 1fr; gap:12px; align-items:start">
+              <div class="panel-header">
+                <h3 id="colsTitle">Column Settings</h3>
+                <div><button class="mini-btn" data-close-modal>Close</button></div>
+              </div>
+              <div class="panel-body"
+                style="display:grid; grid-template-columns: 260px 1fr; gap:12px; align-items:start">
                 <div>
                   <div style="display:flex; gap:6px; margin-bottom:6px">
                     <button class="mini-btn" id="colsMoveUp">Up</button>
                     <button class="mini-btn" id="colsMoveDown">Down</button>
                   </div>
-                  <div id="colsList" style="max-height:420px; overflow:auto; border:1px solid var(--outline); background:#fff; border-radius:10px"></div>
+                  <div id="colsList"
+                    style="max-height:420px; overflow:auto; border:1px solid var(--outline); background:#fff; border-radius:10px">
+                  </div>
                 </div>
                 <div id="colsEditor" style="display:grid; gap:10px"></div>
               </div>
@@ -635,26 +945,31 @@
           </div>
           <div class="cfg-split">
             <div class="panel" style="min-height:300px">
-              <div class="panel-header"><h3>Draft (Demo)</h3><span class="muted">Pulls from Master data</span></div>
+              <div class="panel-header">
+                <h3>Draft (Demo)</h3><span class="muted">Pulls from Master data</span>
+              </div>
               <div class="table-wrap" style="max-height:60vh; overflow:auto">
                 <table class="table" id="cfgDemoTable"></table>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-header"><h3>Settings</h3></div>
+              <div class="panel-header">
+                <h3>Settings</h3>
+              </div>
               <nav class="subnav" role="tablist" aria-label="Config subtabs">
                 <button class="subtab is-active" role="tab" aria-selected="true" data-cfgtab="cfg-table">Table</button>
                 <button class="subtab" role="tab" aria-selected="false" data-cfgtab="cfg-columns">Columns</button>
               </nav>
               <div id="cfgTablePanel">
                 <div class="cfg-grid" style="display:grid; gap:8px; margin-top:8px">
-                  <div class="cfg-row"><label>Aged On</label><input id="cfgAgedOn" type="date"/></div>
-                  <div class="cfg-row"><label>Use Aliases</label><input id="cfgAliasGlobal" type="checkbox"/></div>
+                  <div class="cfg-row"><label>Aged On</label><input id="cfgAgedOn" type="date" /></div>
+                  <div class="cfg-row"><label>Use Aliases</label><input id="cfgAliasGlobal" type="checkbox" /></div>
                   <div class="cfg-row"><label>Default View</label><select id="cfgDefaultView"></select></div>
                 </div>
               </div>
               <div id="cfgColumnsPanel" style="display:none">
-                <div style="display:grid; grid-template-columns: 220px 1fr; gap:10px; align-items:start; margin-top:8px">
+                <div
+                  style="display:grid; grid-template-columns: 220px 1fr; gap:10px; align-items:start; margin-top:8px">
                   <div id="cfgColsList" style="max-height:50vh; overflow:auto"></div>
                   <div id="cfgColsEditor" style="display:grid; gap:8px"></div>
                 </div>
@@ -668,38 +983,53 @@
       <nav class="subnav is-hidden" role="tablist" aria-label="Admin subtabs">
         <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="admin-overview">Overview</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-general">General</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-roles" data-perm="manageUsers">Roles</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-users" data-perm="manageUsers">Users</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-perms" data-perm="manageConfigs">Permissions</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-config" data-perm="manageConfigs">Config</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-notify" data-perm="manageConfigs">Notifications</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-templates" data-perm="manageConfigs">Templates</button>
-        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-validate" data-perm="manageConfigs">Validation</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-roles"
+          data-perm="manageUsers">Roles</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-users"
+          data-perm="manageUsers">Users</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-perms"
+          data-perm="manageConfigs">Permissions</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-config"
+          data-perm="manageConfigs">Config</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-notify"
+          data-perm="manageConfigs">Notifications</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-templates"
+          data-perm="manageConfigs">Templates</button>
+        <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-validate"
+          data-perm="manageConfigs">Validation</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="admin-audit">Audit</button>
       </nav>
       <!-- Admin: Overview -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-overview">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Admin Overview</h2><span class="muted">Settings, roles, flags</span></div>
+          <div class="panel-header">
+            <h2>Admin Overview</h2><span class="muted">Settings, roles, flags</span>
+          </div>
           <div class="grid" style="display:grid; grid-template-columns: repeat(2, 1fr); gap:12px">
             <div class="panel">
-              <div class="panel-header"><h3>General</h3></div>
+              <div class="panel-header">
+                <h3>General</h3>
+              </div>
               <div class="panel-body">
                 <div class="cfg-grid">
-                  <div class="cfg-row"><label>App Name</label><input id="adminAppNameOv" placeholder="My App"/></div>
-                  <div class="cfg-row"><label>Timezone</label><input id="adminTzOv" placeholder="UTC"/></div>
+                  <div class="cfg-row"><label>App Name</label><input id="adminAppNameOv" placeholder="My App" /></div>
+                  <div class="cfg-row"><label>Timezone</label><input id="adminTzOv" placeholder="UTC" /></div>
                   <div class="cfg-row"><label>Current Role</label><select id="adminCurrentRole"></select></div>
                 </div>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-header"><h3>Quick Toggles</h3></div>
+              <div class="panel-header">
+                <h3>Quick Toggles</h3>
+              </div>
               <div class="panel-body">
                 <div id="adminFlagsOv" class="cfg-grid"></div>
               </div>
             </div>
             <div class="panel">
-              <div class="panel-header"><h3>Bundles</h3></div>
+              <div class="panel-header">
+                <h3>Bundles</h3>
+              </div>
               <div class="panel-body">
                 <div class="cfg-grid">
                   <div class="cfg-row"><label>Config</label>
@@ -717,9 +1047,20 @@
       <!-- Admin: Users -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-users">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Users</h2><div><button class="mini-btn" id="adminUserAdd">+ New User</button></div></div>
+          <div class="panel-header">
+            <h2>Users</h2>
+            <div><button class="mini-btn" id="adminUserAdd">+ New User</button></div>
+          </div>
           <table class="cfg-table" id="adminUsersTable">
-            <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Active</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Active</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
@@ -727,21 +1068,40 @@
       <!-- Admin: Notifications -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-notify">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Notification Rules</h2>
+          <div class="panel-header">
+            <h2>Notification Rules</h2>
             <div><button class="mini-btn" id="adminNotifyAdd">+ New Rule</button>
-            <button class="mini-btn" id="adminNotifyExport">Export</button>
-            <button class="mini-btn" id="adminNotifyImport">Import</button></div></div>
+              <button class="mini-btn" id="adminNotifyExport">Export</button>
+              <button class="mini-btn" id="adminNotifyImport">Import</button>
+            </div>
+          </div>
           <table class="cfg-table" id="adminNotifyTable">
-            <thead><tr><th>Event</th><th>Channel</th><th>Recipients</th><th>Condition</th><th>Throttle</th><th>Active</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Channel</th>
+                <th>Recipients</th>
+                <th>Condition</th>
+                <th>Throttle</th>
+                <th>Active</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
           <div class="panel" style="margin-top:10px">
-            <div class="panel-header"><h3>Simulate</h3></div>
+            <div class="panel-header">
+              <h3>Simulate</h3>
+            </div>
             <div class="cfg-grid">
-              <div class="cfg-row"><label>Event</label><input id="adminNotifySimEvent" placeholder="invoice.past_due"/></div>
-              <div class="cfg-row"><label>Payload (JSON)</label><textarea id="adminNotifySimPayload" rows="4" placeholder='{"amount": 1200, "customer": "ACME"}'></textarea></div>
+              <div class="cfg-row"><label>Event</label><input id="adminNotifySimEvent" placeholder="invoice.past_due" />
+              </div>
+              <div class="cfg-row"><label>Payload (JSON)</label><textarea id="adminNotifySimPayload" rows="4"
+                  placeholder='{"amount": 1200, "customer": "ACME"}'></textarea></div>
               <div class="cfg-row"><label></label><button class="mini-btn" id="adminNotifySimRun">Run</button></div>
-              <div class="cfg-row"><label>Result</label><div id="adminNotifySimResult" class="panel" style="padding:10px">—</div></div>
+              <div class="cfg-row"><label>Result</label>
+                <div id="adminNotifySimResult" class="panel" style="padding:10px">—</div>
+              </div>
             </div>
           </div>
         </div>
@@ -749,21 +1109,32 @@
       <!-- Admin: Templates -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-templates">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Message Templates</h2>
+          <div class="panel-header">
+            <h2>Message Templates</h2>
             <div><button class="mini-btn" id="adminTplAdd">+ New Template</button>
-            <button class="mini-btn" id="adminTplExport">Export</button>
-            <button class="mini-btn" id="adminTplImport">Import</button></div></div>
+              <button class="mini-btn" id="adminTplExport">Export</button>
+              <button class="mini-btn" id="adminTplImport">Import</button>
+            </div>
+          </div>
           <div class="cfg-grid">
             <div class="cfg-row"><label>Templates</label>
               <select id="adminTplSelect"></select>
             </div>
             <div class="cfg-row"><label>Channel</label>
-              <select id="adminTplChannel"><option>email</option><option>slack</option><option>gchat</option></select>
+              <select id="adminTplChannel">
+                <option>email</option>
+                <option>slack</option>
+                <option>gchat</option>
+              </select>
             </div>
-            <div class="cfg-row"><label>Key</label><input id="adminTplKey" placeholder="invoice_due"/></div>
-            <div class="cfg-row"><label>Subject</label><input id="adminTplSubject" placeholder="Invoice {{invoice}} due"/></div>
-            <div class="cfg-row"><label>Body</label><textarea id="adminTplBody" rows="6" placeholder="Hello {{name}}, ..."></textarea></div>
-            <div class="cfg-row"><label>Preview</label><div id="adminTplPreview" class="panel" style="padding:10px">—</div></div>
+            <div class="cfg-row"><label>Key</label><input id="adminTplKey" placeholder="invoice_due" /></div>
+            <div class="cfg-row"><label>Subject</label><input id="adminTplSubject"
+                placeholder="Invoice {{invoice}} due" /></div>
+            <div class="cfg-row"><label>Body</label><textarea id="adminTplBody" rows="6"
+                placeholder="Hello {{name}}, ..."></textarea></div>
+            <div class="cfg-row"><label>Preview</label>
+              <div id="adminTplPreview" class="panel" style="padding:10px">—</div>
+            </div>
             <div class="cfg-row"><label></label><button class="mini-btn" id="adminTplSave">Save</button></div>
           </div>
         </div>
@@ -771,9 +1142,23 @@
       <!-- Admin: Validation -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-validate">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Validation & Defaults</h2><div><button class="mini-btn" id="adminValReset">Reset Defaults</button></div></div>
+          <div class="panel-header">
+            <h2>Validation & Defaults</h2>
+            <div><button class="mini-btn" id="adminValReset">Reset Defaults</button></div>
+          </div>
           <table class="cfg-table" id="adminValTable">
-            <thead><tr><th>Field</th><th>Required</th><th>Type</th><th>Pattern</th><th>Default</th><th>Sample</th><th>Result</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Field</th>
+                <th>Required</th>
+                <th>Type</th>
+                <th>Pattern</th>
+                <th>Default</th>
+                <th>Sample</th>
+                <th>Result</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
@@ -784,10 +1169,13 @@
       <!-- Admin: General -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-general">
         <div class="panel span-2">
-          <div class="panel-header"><h2>General Settings</h2></div>
+          <div class="panel-header">
+            <h2>General Settings</h2>
+          </div>
           <div class="cfg-grid" id="adminGeneralForm">
-            <div class="cfg-row"><label>App Name</label><input id="adminAppName" placeholder="Startup XYZ"/></div>
-            <div class="cfg-row"><label>Logo URL</label><input id="adminLogoUrl" placeholder="https://.../logo.png"/></div>
+            <div class="cfg-row"><label>App Name</label><input id="adminAppName" placeholder="Startup XYZ" /></div>
+            <div class="cfg-row"><label>Logo URL</label><input id="adminLogoUrl" placeholder="https://.../logo.png" />
+            </div>
             <div class="cfg-row"><label>Theme</label>
               <select id="adminTheme">
                 <option value="glass">Glass</option>
@@ -795,10 +1183,10 @@
                 <option value="mint">Mint</option>
               </select>
             </div>
-            <div class="cfg-row"><label>Timezone</label><input id="adminTimezone" placeholder="UTC"/></div>
+            <div class="cfg-row"><label>Timezone</label><input id="adminTimezone" placeholder="UTC" /></div>
             <div class="cfg-row"><label>UI Scale</label>
               <div>
-                <input id="adminUiScale" type="range" min="0.6" max="1.2" step="0.01" style="vertical-align:middle"/>
+                <input id="adminUiScale" type="range" min="0.6" max="1.2" step="0.01" style="vertical-align:middle" />
                 <span id="adminUiScaleVal" class="muted" style="margin-left:8px">80%</span>
               </div>
             </div>
@@ -809,9 +1197,19 @@
       <!-- Admin: Roles -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-roles">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Roles</h2><div><button class="mini-btn" id="adminRoleAdd">+ New Role</button></div></div>
+          <div class="panel-header">
+            <h2>Roles</h2>
+            <div><button class="mini-btn" id="adminRoleAdd">+ New Role</button></div>
+          </div>
           <table class="cfg-table" id="adminRolesTable">
-            <thead><tr><th>Name</th><th>Description</th><th>Users</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th>Users</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
@@ -819,16 +1217,28 @@
       <!-- Admin: Permissions -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-perms">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Permissions</h2><span class="muted">Per role matrix</span></div>
+          <div class="panel-header">
+            <h2>Permissions</h2><span class="muted">Per role matrix</span>
+          </div>
           <div id="adminPermsMatrix"></div>
         </div>
       </section>
       <!-- Admin: Config (Feature Flags) -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-config">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Feature Flags</h2><div><button class="mini-btn" id="adminFlagAdd">+ New Flag</button></div></div>
+          <div class="panel-header">
+            <h2>Feature Flags</h2>
+            <div><button class="mini-btn" id="adminFlagAdd">+ New Flag</button></div>
+          </div>
           <table class="cfg-table" id="adminFlagsTable">
-            <thead><tr><th>Key</th><th>Label</th><th>Enabled</th><th></th></tr></thead>
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Label</th>
+                <th>Enabled</th>
+                <th></th>
+              </tr>
+            </thead>
             <tbody></tbody>
           </table>
         </div>
@@ -836,31 +1246,57 @@
       <!-- Admin: Audit -->
       <section class="subtab-panel is-hidden" data-subtab-panel="admin-audit">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Audit Log</h2><div><button class="mini-btn" id="adminAuditSeed">Seed</button></div></div>
+          <div class="panel-header">
+            <h2>Audit Log</h2>
+            <div><button class="mini-btn" id="adminAuditSeed">Seed</button></div>
+          </div>
           <div class="table-wrap">
             <table class="table" id="adminAuditTable">
-              <thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Target</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>Target</th>
+                </tr>
+              </thead>
               <tbody></tbody>
             </table>
           </div>
         </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="compliance-policies">
-        <div class="panel"><div class="panel-header"><h2>Policies</h2></div><p class="muted">Documents and updates.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Policies</h2>
+          </div>
+          <p class="muted">Documents and updates.</p>
+        </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="compliance-audits">
-        <div class="panel"><div class="panel-header"><h2>Audits</h2></div><p class="muted">Upcoming audit schedule.</p></div>
+        <div class="panel">
+          <div class="panel-header">
+            <h2>Audits</h2>
+          </div>
+          <p class="muted">Upcoming audit schedule.</p>
+        </div>
       </section>
 
       <!-- Settings subnav -->
       <nav class="subnav is-hidden" role="tablist" aria-label="Settings subtabs">
-        <button class="subtab is-active" role="tab" aria-selected="true" data-subtab="settings-collections">Collections</button>
+        <button class="subtab is-active" role="tab" aria-selected="true"
+          data-subtab="settings-collections">Collections</button>
         <button class="subtab" role="tab" aria-selected="false" data-subtab="settings-general">General</button>
       </nav>
       <section class="subtab-panel is-hidden" data-subtab-panel="settings-collections">
         <div class="panel span-2">
-          <div class="panel-header"><h2>Collections Configuration</h2><span class="muted">Statuses, Templates, Tags, SLA, Display</span></div>
-          <div id="colCfgUnsaved" class="muted" style="display:none; padding:8px 10px; border:1px dashed var(--outline); border-radius:10px; background:#fff">Unsaved changes — <button class="mini-btn" id="colCfgSave">Save</button> <button class="mini-btn" id="colCfgDiscard">Discard</button></div>
+          <div class="panel-header">
+            <h2>Collections Configuration</h2><span class="muted">Statuses, Templates, Tags, SLA, Display</span>
+          </div>
+          <div id="colCfgUnsaved" class="muted"
+            style="display:none; padding:8px 10px; border:1px dashed var(--outline); border-radius:10px; background:#fff">
+            Unsaved changes — <button class="mini-btn" id="colCfgSave">Save</button> <button class="mini-btn"
+              id="colCfgDiscard">Discard</button></div>
           <div style="display:grid; grid-template-columns: 240px 1fr; gap:12px; align-items:start; margin-top:8px">
             <aside style="display:flex; flex-direction:column; gap:6px" id="colCfgNav">
               <button class="mini-btn" data-cfg-page="statuses">Statuses</button>
@@ -875,14 +1311,18 @@
         </div>
       </section>
       <section class="subtab-panel is-hidden" data-subtab-panel="settings-general">
-        <div class="panel span-2"><div class="panel-header"><h2>General Settings</h2></div><p class="muted">Project-wide preferences.</p></div>
+        <div class="panel span-2">
+          <div class="panel-header">
+            <h2>General Settings</h2>
+          </div>
+          <p class="muted">Project-wide preferences.</p>
+        </div>
       </section>
 
-      
+
     </main>
   </div>
 
-  <script defer src="billing.js"></script>
   <script src="app.js"></script>
 </body>
 

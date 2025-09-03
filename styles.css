@@ -80,7 +80,7 @@ body::before{
   /* Remove outer glow/drop shadow for a cleaner rail */
   box-shadow: none;
   border:var(--line) solid var(--outline);
-  position:relative;
+  position:relative; z-index:100; /* keep sidebar above sticky subnav */
 }
 /* Left-rail subtab list (optional, shown for the active main section) */
 .nav-subgroup{display:flex; flex-direction:column; gap:4px; margin:4px 0 10px 32px}

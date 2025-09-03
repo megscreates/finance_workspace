@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AR Collections — Timeline (Soft Glass + Density Toggle)</title>
+
+<style>
+/* ================= Tokens (mirrored from your styles) ================= */
+:root{
+  --text:#12131a; --muted:#7a7e9a;
+  --primary:#6f5cff; --primary-600:#5b47ff; --primary-200:#e7e4ff;
+  --accent-pink:#ff6fb1; --accent-sky:#64d2ff; --accent-yellow:#ffd44d; --accent-green:#19c37d; --accent-coral:#ff6a4d;
+  --ring:rgba(111,92,255,0.35);
+  --outline:#12131a; --line:2px; --radius:18px; --shadow-offset:6px;
+  --bg: radial-gradient(1200px 700px at 80% -10%, rgba(155,155,255,.37), transparent 60%),
+        radial-gradient(900px 500px at -10% 10%, rgba(255,155,155,.37), transparent 50%),
+        linear-gradient(180deg,#fff5f5 0%, #f6f1ff 50%, #eef9ff 85%, #ffffff 100%);
+}
+
+/* ================= Preview shell (CodePen context only) ================= */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0; font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,Arial; color:var(--text); background:var(--bg)}
+.app-shell{display:grid; grid-template-columns:260px 1fr; height:100vh}
+.sidebar{
+  background:linear-gradient(180deg, rgba(255,255,255,.6), rgba(255,255,255,.35));
+  border:1px solid rgba(255,255,255,0.45);
+  backdrop-filter:saturate(160%) blur(8px);
+  color:#12131a; padding:18px; display:flex; flex-direction:column; gap:14px;
+  border-radius:0 20px 20px 0; box-shadow:0 12px 36px rgba(31,35,70,.16);
+}
+.brand{display:flex; align-items:center; gap:10px; font-weight:800}
+.logo{width:36px;height:36px;border-radius:10px; background:#fff; display:grid; place-items:center; border:1px solid rgba(0,0,0,.08); box-shadow:0 6px 16px rgba(31,35,70,.12)}
+.nav{display:flex; flex-direction:column; gap:6px; margin-top:8px}
+.nav a{display:flex; gap:10px; align-items:center; padding:12px; border-radius:16px; text-decoration:none; color:#12131a}
+.nav a:hover{background:#f4f1ff}
+.nav a.active{background:#fff; border:1px solid rgba(0,0,0,.08); box-shadow:0 6px 16px rgba(31,35,70,.12)}
+.content{padding:22px 26px; overflow:auto}
+.topbar{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px}
+.topbar h1{margin:0; font-size:22px}
+.gradient-text{background:linear-gradient(90deg,var(--primary), var(--accent-pink), var(--accent-sky)); -webkit-background-clip:text; background-clip:text; color:transparent}
+
+/* ================= Soft Glass primitives ================= */
+.glass{
+  background:linear-gradient(180deg, rgba(255,255,255,.66), rgba(255,255,255,.48));
+  border:1px solid rgba(255,255,255,0.55);
+  backdrop-filter:saturate(180%) blur(16px);
+  border-radius:22px;
+  box-shadow:0 24px 50px rgba(31,35,70,.18), inset 0 1px 0 rgba(255,255,255,.55), 0 1px 0 rgba(255,255,255,.35);
+}
+.glass-header{
+  background:linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.62));
+  border-bottom:1px solid rgba(255,255,255,.55);
+  padding:12px 14px; border-top-left-radius:22px; border-top-right-radius:22px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+}
+.subtle-card{
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(255,255,255,.70);
+  border-radius:14px; box-shadow:0 10px 26px rgba(31,35,70,.10);
+}
+
+/* ================= Density system ================= */
+#ar-block{ --pad:12px; --row-gap:12px; --cell-y:12px; --meta-gap:8px; --chip-y:4px; --line-height:1.5; }
+#ar-block[data-density="compact"] { --pad:8px; --row-gap:8px; --cell-y:8px; --meta-gap:6px; --chip-y:3px; --line-height:1.35; }
+#ar-block[data-density="comfortable"]{ --pad:14px; --row-gap:14px; --cell-y:14px; --meta-gap:10px; --chip-y:5px; --line-height:1.6; }
+
+/* ================= AR Block ================= */
+#ar-block{display:grid; grid-template-columns:1.25fr 1fr; gap:16px}
+@media (max-width: 1000px){ #ar-block{grid-template-columns:1fr} }
+
+.ar-actions{display:flex; gap:8px; flex-wrap:wrap}
+.ar-input,.ar-select,.ar-btn{ border-radius:14px; border:1px solid #e7e7f3; background:#fff; color:var(--text); font-size:14px }
+.ar-input{ padding:10px 12px; outline:none }
+.ar-input:focus,.ar-select:focus,.ar-textarea:focus{ box-shadow:0 0 0 4px var(--ring); border-color:transparent }
+.ar-btn{ padding:10px 12px; cursor:pointer; background:#fff; font-weight:800; letter-spacing:.2px }
+.ar-btn.primary{
+  background:linear-gradient(145deg, var(--primary-200), #fff) padding-box,
+             linear-gradient(145deg, var(--primary), var(--primary-600)) border-box;
+  border:2px solid transparent; color:#2b2366
+}
+
+/* Density toggle */
+.density-toggle{ display:inline-flex; background:#ece5ff; border:var(--line) solid var(--outline); border-radius:12px; padding:4px }
+.density-toggle button{ border:none; background:transparent; padding:6px 10px; border-radius:8px; color:#3f3f56; cursor:pointer; font-weight:800 }
+.density-toggle .active{ background:#fff; color:#12131a; box-shadow:calc(var(--shadow-offset)/2) calc(var(--shadow-offset)/2) 0 rgba(18,19,26,.15); }
+
+/* Table */
+.ar-table{ width:100%; border-collapse:separate; border-spacing:0 var(--row-gap) }
+.ar-table thead th{
+  font-size:12px; color:var(--muted); text-align:left; padding:8px 10px;
+  background:rgba(255,255,255,.62); border:1px solid rgba(255,255,255,.55); backdrop-filter:blur(10px)
+}
+.ar-table td{
+  background:rgba(255,255,255,.66); padding:var(--cell-y) 10px;
+  border-top:1px solid rgba(255,255,255,.55); border-bottom:1px solid rgba(255,255,255,.55)
+}
+.ar-table tbody td:first-child{border-top-left-radius:12px; border-bottom-left-radius:12px}
+.ar-table tbody td:last-child{ border-top-right-radius:12px; border-bottom-right-radius:12px }
+.ar-table tbody tr{ cursor:pointer }
+.ar-table tbody tr:hover td{ background:rgba(255,255,255,.82); box-shadow:0 6px 18px rgba(31,35,70,.14) }
+
+/* Pills + SLA */
+.ar-pill{ display:inline-flex; align-items:center; gap:6px; padding:calc(var(--chip-y)) 10px; border-radius:999px; font-weight:800; font-size:12px; border:1px solid rgba(255,255,255,.7) }
+.ar-s-pending{   background:#f0e9ff; color:#5a3fff }
+.ar-s-contacted{ background:#e6f7ff; color:#045079 }
+.ar-s-promised{  background:#fff7d6; color:#7a5b00 }
+.ar-s-overdue{   background:#ffeaea; color:#b91c1c }
+.ar-s-escalated{ background:linear-gradient(145deg,#ffe3fb,#fff); color:#a31967 }
+.ar-s-paid{      background:#ecfdf5; color:#047857 }
+.ar-sla{ display:inline-flex; align-items:center; gap:6px; padding:calc(var(--chip-y)) 8px; background:#ffeaea; color:#b91c1c; border:1px solid rgba(255,255,255,.7); border-radius:999px; font-weight:900; font-size:12px }
+
+/* Right drawer: polished layout */
+.ar-detail{ display:grid; grid-template-rows:auto auto 1fr auto; min-height:680px }
+.ar-meta-grid{
+  display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:var(--meta-gap); padding:var(--pad);
+}
+@media (max-width: 680px){ .ar-meta-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.kv{ display:flex; flex-direction:column; gap:4px; }
+.kv label{ font-size:11px; color:var(--muted); font-weight:800; letter-spacing:.2px }
+.kv .val{ background:#fff; border:1px solid #e7e7f3; border-radius:12px; padding:8px 10px; display:flex; align-items:center; gap:8px; min-height:36px }
+.kv .val.select select, .kv .val input{ border:1px solid #e7e7f3; border-radius:10px; padding:6px 8px; }
+.badge{ display:inline-flex; align-items:center; gap:6px; padding:calc(var(--chip-y)) 10px; border-radius:999px; font-size:12px; font-weight:800; background:#f0e9ff; color:#5a3fff; border:1px solid rgba(255,255,255,.7) }
+.tags{ display:flex; gap:8px; flex-wrap:wrap }
+.tag{ background:#fff; border:1px solid #e7e7f3; border-radius:999px; padding:4px 10px; font-size:12px; font-weight:700; color:#3f3f56 }
+.tag.add{ background:#f7f7ff; cursor:text }
+
+.meta-divider{ height:1px; background:rgba(255,255,255,.55); margin:0 var(--pad) }
+
+/* Segmented filter */
+.ar-seg{ margin:var(--pad); display:inline-flex; background:#ece5ff; border-radius:12px; padding:4px; border:var(--line) solid var(--outline) }
+.ar-seg button{ border:none; background:transparent; padding:6px 10px; border-radius:8px; color:#3f3f56; cursor:pointer; font-weight:800 }
+.ar-seg .active{ background:#fff; color:#12131a; box-shadow:calc(var(--shadow-offset)/2) calc(var(--shadow-offset)/2) 0 rgba(18,19,26,.15); border:var(--line) solid var(--outline) }
+
+/* Timeline */
+.ar-timeline{ padding:var(--pad); overflow:auto; display:flex; flex-direction:column; gap:var(--row-gap); max-height:420px }
+.ar-day{ position:sticky; top:0; z-index:1; display:inline-flex; align-items:center; gap:8px;
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(255,255,255,.72));
+  padding:6px 10px; border-radius:12px; color:#534a93; font-weight:900; letter-spacing:.2px; border:1px solid rgba(255,255,255,.6)
+}
+.ar-evt{ display:grid; grid-template-columns:28px 1fr; gap:12px }
+.ar-glyph{ width:24px; height:24px; border-radius:8px; display:grid; place-items:center; background:linear-gradient(145deg,#fff,var(--primary-200)); border:1px solid #e7e7f3; color:#2b2366; font-weight:900 }
+.ar-evtcard{ background:rgba(255,255,255,.96); border:1px solid rgba(255,255,255,0.75); border-radius:16px; padding:12px 14px; display:flex; flex-direction:column; gap:10px; box-shadow:0 12px 30px rgba(31,35,70,.10) }
+.ar-evt-top{ display:flex; align-items:center; justify-content:space-between; gap:10px }
+.ar-evt-meta{ display:flex; align-items:center; gap:12px; color:#7a7e9a; font-size:12px; line-height:var(--line-height) }
+.ar-tag{ display:inline-flex; align-items:center; gap:6px; padding:calc(var(--chip-y)) 10px; border-radius:999px; font-weight:800; font-size:12px; border:1px solid rgba(255,255,255,0.7); background:#f0e9ff; color:#5a3fff }
+.ar-evt-body{ line-height:var(--line-height); font-size:14px }
+.ar-ava{ width:22px; height:22px; border-radius:8px; background:linear-gradient(145deg,#fff,#f0e9ff); display:inline-grid; place-items:center; font-size:10px; font-weight:900; color:#5a3fff; border:1px solid #e7e7f3 }
+
+/* Composer */
+.ar-compose{ border-top:1px solid rgba(255,255,255,.55); background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(255,255,255,.72)); padding:var(--pad); display:grid; gap:10px }
+.ar-row{ display:flex; gap:10px; align-items:flex-start; flex-wrap:wrap }
+.ar-textarea{ flex:1; min-height:96px; resize:vertical; padding:12px 14px; border-radius:16px; border:1px solid #e7e7f3; background:#fff; line-height:var(--line-height) }
+
+/* Rollups + followups */
+.ar-roll{ display:grid; grid-template-columns:repeat(5,1fr); gap:10px; padding:10px; border-top:1px solid rgba(255,255,255,.55); background:rgba(255,255,255,.72) }
+.ar-tile{ background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.65); border-radius:14px; padding:10px; box-shadow:0 10px 26px rgba(31,35,70,.10) }
+.ar-tile h4{ margin:0; font-size:12px; color:var(--muted) }
+.ar-tile strong{ font-size:16px }
+.ar-follow{ margin-top:12px; padding:0 var(--pad) var(--pad) }
+.ar-fitem{ display:flex; align-items:center; justify-content:space-between; padding:10px; background:rgba(255,255,255,.86); border:1px solid rgba(255,255,255,.65); border-radius:14px; margin-top:8px; box-shadow:0 10px 26px rgba(31,35,70,.10) }
+</style>
+</head>
+<body>
+
+<!-- ================= Preview shell ================= -->
+<div class="app-shell">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">AR</div><span>Collections</span></div>
+    <nav class="nav"><a class="active" href="#">Receivables</a><a href="#">Payables</a><a href="#">Reports</a></nav>
+  </aside>
+  <main class="content">
+    <div class="topbar">
+      <h1><span class="gradient-text">Timeline</span> — Soft Glass</h1>
+      <div class="density-toggle" id="densityToggle" role="tablist" aria-label="Density">
+        <button data-density="comfortable" class="active" aria-selected="true">Comfortable</button>
+        <button data-density="compact" aria-selected="false">Compact</button>
+      </div>
+    </div>
+
+    <!-- ================= AR Collections — Timeline ================= -->
+    <section id="ar-block" data-density="comfortable">
+      <!-- LEFT: LIST -->
+      <div class="glass">
+        <div class="glass-header">
+          <div class="widget-title" style="font-weight:900">Invoice Queue</div>
+          <div class="ar-actions">
+            <input id="arSearch" class="ar-input" placeholder="Search invoices, accounts, notes…"/>
+            <select id="arFilter" class="ar-select" aria-label="Status filter">
+              <option>All Statuses</option>
+              <option>Pending Contact</option>
+              <option>Contacted</option>
+              <option>Promised Payment</option>
+              <option>Overdue</option>
+              <option>Escalated</option>
+              <option>Paid</option>
+            </select>
+          </div>
+        </div>
+        <div style="overflow:auto">
+          <table class="ar-table" aria-label="Invoice list">
+            <thead>
+              <tr>
+                <th>Invoice</th><th>Account</th><th>Amount</th><th>Due</th><th>Status</th><th>Expected</th><th>Assigned</th><th>SLA</th>
+              </tr>
+            </thead>
+            <tbody id="arRows"></tbody>
+          </table>
+        </div>
+        <div id="arRollups" class="ar-roll"></div>
+      </div>
+
+      <!-- RIGHT: POLISHED DETAIL -->
+      <aside class="glass ar-detail" aria-live="polite" aria-label="Invoice details">
+        <div class="glass-header" style="align-items:center">
+          <div class="widget-title" id="dTitle" style="font-weight:900">Select an invoice</div>
+          <span class="badge" id="dBadge">Status: —</span>
+        </div>
+
+        <!-- Meta grid -->
+        <div class="ar-meta-grid">
+          <div class="kv"><label>Invoice</label><div class="val"><span id="dId">—</span></div></div>
+          <div class="kv"><label>Amount</label><div class="val"><span id="dAmt">—</span></div></div>
+          <div class="kv"><label>Due Date</label><div class="val"><span id="dDue">—</span></div></div>
+          <div class="kv"><label>Assigned</label><div class="val select"><select id="dAssigned"></select></div></div>
+
+          <div class="kv"><label>Status</label><div class="val select"><select id="dStatus"></select></div></div>
+          <div class="kv"><label>Expected Payment</label><div class="val"><input id="dExpected" type="date"/></div></div>
+          <div class="kv"><label>Escalation</label><div class="val"><input id="dEsc" type="checkbox"/> <span>Escalate</span><span id="dSla" class="ar-sla" style="margin-left:auto; display:none"></span></div></div>
+          <div class="kv"><label>Tags</label><div class="val"><div class="tags" id="dTags"><span class="tag">High Value</span><span class="tag">First Contact</span><span class="tag add" contenteditable="true" data-placeholder="+ add tag"></span></div></div></div>
+        </div>
+
+        <div class="meta-divider"></div>
+
+        <!-- Timeline filter -->
+        <div class="ar-seg" role="tablist" aria-label="Timeline filter">
+          <button class="active" data-filter="All" aria-selected="true">All</button>
+          <button data-filter="Note">Notes</button><button data-filter="Call">Calls</button><button data-filter="Email">Emails</button><button data-filter="Escalation">Escalations</button><button data-filter="Follow-up">Follow-ups</button>
+        </div>
+
+        <!-- Timeline -->
+        <div id="dTimeline" class="ar-timeline" aria-label="Timeline"></div>
+
+        <!-- Composer -->
+        <div class="ar-compose" aria-label="Add note">
+          <div class="ar-row">
+            <textarea id="noteText" class="ar-textarea" placeholder="Write a clear, factual note… Use @Name and #Tag. Shift+Enter=newline. Ctrl/Cmd+Enter=save."></textarea>
+          </div>
+          <div class="ar-row" style="justify-content:space-between">
+            <div class="ar-row">
+              <select id="tplSelect" class="ar-select">
+                <option value="">Templates…</option>
+                <option value="call">Call Attempt</option>
+                <option value="promise">Promise to Pay</option>
+                <option value="broken">Broken Promise</option>
+                <option value="reminder">Upcoming Reminder</option>
+              </select>
+              <button class="ar-btn" data-type="Call">📞 Call</button>
+              <button class="ar-btn" data-type="Email">✉️ Email</button>
+              <button class="ar-btn" data-type="Meeting">📅 Meeting</button>
+            </div>
+            <div class="ar-row">
+              <span id="noteCount" class="ar-ctr">0 / 500</span>
+              <button class="ar-btn primary" id="noteAdd">Add Note</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Follow-ups -->
+        <div class="ar-follow">
+          <div class="widget-title" style="font-weight:900; margin-bottom:6px">Follow-ups (auto)</div>
+          <div id="arFollow"></div>
+        </div>
+      </aside>
+    </section>
+    <!-- ================= end AR block ================= -->
+  </main>
+</div>
+
+<script>
+/* ===== Demo data / helpers ===== */
+const COLLECTORS = ["Sam Diaz","Priya Kumar","Lee Brown","Mina Park","Jordan Patel","Alex Morgan"];
+const STATUSES = ['Pending Contact','Contacted','Promised Payment','Overdue','Escalated','Paid'];
+const SLA_HOURS = 4;
+const today = new Date();
+
+let invoices = [
+  {id:"INV-1001", account:"Ardent Robotics", amount:9200, due:"2025-08-20", status:"Pending Contact", assigned:"Sam Diaz", expected:"2025-09-09", notes:[
+    {t:"System",k:"Invoice synced from ERP", ts:"2025-07-22 08:31"},
+    {t:"Note",  k:"Primary contact on PTO this week.", ts:"2025-08-12 10:12", author:"Sam Diaz"}
+  ]},
+  {id:"INV-1007", account:"Northshore Labs", amount:4820, due:"2025-08-15", status:"Pending Contact", assigned:"Sam Diaz", expected:"2025-09-05", notes:[
+    {t:"System",k:"Created", ts:"2025-07-20 09:10"},
+    {t:"Call",  k:"No answer; VM left with callback.", ts:"2025-08-14 14:42", author:"Sam Diaz"},
+    {t:"Email", k:"Intro + statement sent to ap@northshorelabs.com", ts:"2025-08-14 15:05", author:"Sam Diaz"}
+  ]},
+  {id:"INV-1009", account:"Vantage Media", amount:12500, due:"2025-08-10", status:"Contacted", assigned:"Priya Kumar", expected:"2025-09-07", notes:[
+    {t:"Email", k:"Follow-up w/ statement + portal link", ts:"2025-08-14 15:22", author:"Priya Kumar"},
+    {t:"Call",  k:"Spoke w/ AP; dispute on line item #3.", ts:"2025-08-16 10:04", author:"Priya Kumar"},
+    {t:"Note",  k:"Sent backup; awaiting approval.", ts:"2025-08-18 16:40", author:"Priya Kumar"}
+  ]},
+  {id:"INV-1014", account:"Polar Finch", amount:8200, due:"2025-07-30", status:"Overdue", assigned:"Lee Brown", expected:"2025-08-28", notes:[
+    {t:"Call",  k:"Client requested payment plan options.", ts:"2025-08-01 11:32", author:"Lee Brown"},
+    {t:"Email", k:"Shared 2-plan comparison (Net15/Net30)", ts:"2025-08-01 13:05", author:"Lee Brown"}
+  ]},
+  {id:"INV-1021", account:"Acumen Studio", amount:3120, due:"2025-08-05", status:"Promised Payment", assigned:"Mina Park", expected:"2025-09-08", notes:[
+    {t:"Email", k:"Promised payment Monday via ACH.", ts:"2025-08-25 13:15", author:"Mina Park"},
+    {t:"Note",  k:"ACH details verified.", ts:"2025-08-25 13:18", author:"Mina Park"}
+  ]},
+  {id:"INV-1033", account:"Sequoia Valve", amount:15600, due:"2025-07-18", status:"Escalated", assigned:"Sam Diaz", expected:"2025-08-26", escalatedAt: isoMinusHours(2), notes:[
+    {t:"Escalation", k:"High risk flagged (>60 days).", ts:"2025-08-02 09:41", author:"Sam Diaz"},
+    {t:"Note",       k:"Legal looped for clause review.", ts:"2025-08-22 11:10", author:"Sam Diaz"}
+  ]},
+  {id:"INV-1038", account:"Atlas North", amount:2100, due:"2025-08-12", status:"Paid", assigned:"Priya Kumar", expected:"2025-08-18", notes:[
+    {t:"System",k:"Payment received via card.", ts:"2025-08-18 09:00"}
+  ]}
+];
+
+const $  = s => document.querySelector(s);
+const $$ = s => document.querySelectorAll(s);
+const esc = s => (s||'').replace(/[&<>\"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+const money = n => n.toLocaleString(undefined,{style:'currency',currency:'USD'});
+function nowIso(){ return new Date().toISOString().slice(0,16).replace('T',' '); }
+function stripTime(d){ const x=new Date(d); x.setHours(0,0,0,0); return x }
+function daysBetween(a,b){ const ms=86400000; return Math.floor((stripTime(a)-stripTime(b))/ms) }
+function isoMinusHours(h){ const d=new Date(); d.setHours(d.getHours()-h); return d.toISOString().slice(0,16).replace('T',' ') }
+
+/* ===== Density toggle ===== */
+const arBlock = $('#ar-block');
+$('#densityToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-density]'); if(!btn) return;
+  $$('#densityToggle button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  arBlock.setAttribute('data-density', btn.dataset.density);
+});
+
+/* ===== Rollups / follow-ups ===== */
+function computeRollups(){
+  const buckets = {"Current":0,"1-30":0,"31-60":0,"61-90":0,">90":0};
+  invoices.forEach(inv=>{
+    if(inv.status!=="Paid"){
+      const diff = daysBetween(new Date(), new Date(inv.due||new Date()));
+      let b="Current"; if(diff>0) b="Current"; else if(diff>=-30) b="1-30"; else if(diff>=-60) b="31-60"; else if(diff>=-90) b="61-90"; else b=">90";
+      buckets[b]+=inv.amount;
+    }
+  });
+  return buckets;
+}
+function renderRollups(){
+  const b = computeRollups();
+  $('#arRollups').innerHTML = `
+    <div class="ar-tile"><h4>Current</h4><strong>${money(b["Current"])}</strong></div>
+    <div class="ar-tile"><h4>1–30</h4><strong>${money(b["1-30"])}</strong></div>
+    <div class="ar-tile"><h4>31–60</h4><strong>${money(b["31-60"])}</strong></div>
+    <div class="ar-tile"><h4>61–90</h4><strong>${money(b["61-90"])}</strong></div>
+    <div class="ar-tile"><h4>>90</h4><strong>${money(b[">90"])}</strong></div>`;
+}
+function renderFollowups(){
+  const list = invoices.filter(inv => inv.expected && inv.status!=='Paid' && stripTime(new Date(inv.expected)) < stripTime(new Date()));
+  const box = $('#arFollow');
+  if(!list.length){ box.innerHTML = `<div class="ar-fitem"><span class="ar-evt-meta">No follow-ups needed right now</span></div>`; return; }
+  box.innerHTML = list.map(inv => `
+    <div class="ar-fitem">
+      <div><strong>${esc(inv.account)}</strong> <span class="ar-tag" style="margin-left:6px">${inv.id}</span><div class="ar-evt-meta">Expected ${inv.expected}</div></div>
+      <div>
+        <button class="ar-btn" data-fu="call" data-id="${inv.id}">Call</button>
+        <button class="ar-btn" data-fu="email" data-id="${inv.id}">Email</button>
+        <button class="ar-btn primary" data-fu="log" data-id="${inv.id}">Log Follow-up</button>
+      </div>
+    </div>`).join('');
+}
+$('#arFollow').addEventListener('click', e=>{
+  const id=e.target.dataset.id; const inv=invoices.find(i=>i.id===id); if(!inv) return;
+  if(e.target.dataset.fu==='log'){
+    inv.notes.push({t:'Follow-up', k:`Follow-up performed on expected ${inv.expected}`, ts:nowIso(), author: inv.assigned});
+    renderFollowups(); if(currentId===id) renderTimeline(inv);
+  }
+});
+
+/* ===== SLA ===== */
+function slaRemaining(inv){
+  if(inv.status!=='Escalated') return null;
+  const start = inv.escalatedAt ? new Date(inv.escalatedAt) : new Date();
+  const deadline = new Date(start.getTime() + SLA_HOURS*3600*1000);
+  return deadline - new Date();
+}
+function fmtDur(ms){ if(ms<=0) return "BREACHED"; const s=Math.floor(ms/1000); const h=Math.floor(s/3600); const m=Math.floor((s%3600)/60); return `${h}h ${m}m` }
+let slaTick = null; function startSlaTicker(){ if(slaTick) clearInterval(slaTick); slaTick = setInterval(()=>{ renderRows(); if(currentId) openDrawer(currentId); }, 60000); }
+
+/* ===== Table ===== */
+const rowsEl = $('#arRows');
+function pill(status){
+  const cls = status==="Pending Contact" ? "ar-s-pending" :
+              status==="Contacted"       ? "ar-s-contacted" :
+              status==="Promised Payment"? "ar-s-promised" :
+              status==="Overdue"         ? "ar-s-overdue" :
+              status==="Escalated"       ? "ar-s-escalated" :
+              status==="Paid"            ? "ar-s-paid" : "ar-s-pending";
+  return `<span class="ar-pill ${cls}">${status}</span>`;
+}
+function renderRows(){
+  const q = ($('#arSearch')?.value||'').toLowerCase();
+  const f = $('#arFilter')?.value||'All Statuses';
+  const list = invoices.filter(inv=>{
+    const okF = (f==='All Statuses' || inv.status===f);
+    const okQ = [inv.id,inv.account,inv.assigned,inv.status].join(' ').toLowerCase().includes(q);
+    return okF && okQ;
+  });
+  rowsEl.innerHTML = list.map(inv=>{
+    const sla = slaRemaining(inv);
+    const initials = (inv.assigned||'').split(' ').map(p=>p[0]).join('').slice(0,2);
+    return `<tr data-id="${inv.id}">
+      <td>${inv.id}</td>
+      <td>${esc(inv.account)}</td>
+      <td>${money(inv.amount)}</td>
+      <td>${inv.due}</td>
+      <td>${pill(inv.status)}</td>
+      <td>${inv.expected || '<span class="ar-evt-meta">—</span>'}</td>
+      <td><span class="ar-ava" title="${esc(inv.assigned)}">${initials}</span> ${esc(inv.assigned)}</td>
+      <td>${inv.status==='Escalated' ? `<span class="ar-sla">${fmtDur(sla)}</span>` : ''}</td>
+    </tr>`;
+  }).join('');
+}
+rowsEl.addEventListener('click', e=>{ const tr = e.target.closest('tr'); if(tr) openDrawer(tr.dataset.id); });
+
+/* ===== Drawer ===== */
+let currentId = null, tlFilter = 'All';
+function openDrawer(id){
+  const inv = invoices.find(i=>i.id===id); if(!inv) return;
+  currentId = id;
+  $('#dTitle').textContent = inv.account;
+  $('#dId').textContent = inv.id;
+  $('#dAmt').textContent = money(inv.amount);
+  $('#dDue').textContent = inv.due;
+  $('#dAssigned').innerHTML = COLLECTORS.map(n=>`<option ${n===inv.assigned?'selected':''}>${n}</option>`).join('');
+  $('#dStatus').innerHTML   = STATUSES.map(s=>`<option ${s===inv.status?'selected':''}>${s}</option>`).join('');
+  $('#dExpected').value     = inv.expected || '';
+  $('#dEsc').checked        = inv.status==='Escalated';
+
+  // Status badge + SLA
+  const badge = document.getElementById('dBadge');
+  badge.textContent = `Status: ${inv.status}`;
+  const sla = slaRemaining(inv);
+  const slaEl = $('#dSla');
+  if(inv.status==='Escalated'){ slaEl.style.display='inline-flex'; slaEl.textContent = fmtDur(sla); } else { slaEl.style.display='none'; slaEl.textContent=''; }
+
+  // roll-up AR total (placeholder)
+  document.getElementById('dArTotal')?.remove(); // not used here now
+  renderTimeline(inv);
+}
+$('#dAssigned').addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.assigned=e.target.value; renderRows(); } });
+$('#dStatus').addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.status=e.target.value; if(inv.status==='Escalated' && !inv.escalatedAt) inv.escalatedAt = nowIso(); renderRows(); renderFollowups(); openDrawer(inv.id); startSlaTicker(); } });
+$('#dExpected').addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.expected=e.target.value; renderRows(); renderFollowups(); } });
+$('#dEsc').addEventListener('change', e=>{ const inv=invoices.find(i=>i.id===currentId); if(inv){ inv.status = e.target.checked? 'Escalated':'Contacted'; if(e.target.checked) inv.escalatedAt = nowIso(); renderRows(); openDrawer(inv.id); startSlaTicker(); } });
+
+/* Tag add (contenteditable chip) */
+document.addEventListener('keydown', (e)=>{
+  const chip = e.target.closest('.tag.add');
+  if(!chip) return;
+  if(e.key==='Enter'){ e.preventDefault(); const t=chip.textContent.trim(); if(!t) return; const span=document.createElement('span'); span.className='tag'; span.textContent=t; chip.before(span); chip.textContent=''; }
+});
+
+/* ===== Timeline ===== */
+document.querySelector('.ar-seg').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-filter]'); if(!btn) return;
+  document.querySelector('.ar-seg .active')?.classList.remove('active'); btn.classList.add('active');
+  tlFilter = btn.dataset.filter;
+  if(currentId){ const inv=invoices.find(i=>i.id===currentId); if(inv) renderTimeline(inv); }
+});
+function renderTimeline(inv){
+  const wrap = document.getElementById('dTimeline');
+  const types = (tlFilter !== 'All') ? [tlFilter] : null;
+  const byDay = {};
+  (inv.notes||[]).forEach(n=>{
+    if(types && !types.includes(n.t)) return;
+    const day = (n.ts||'').slice(0,10);
+    (byDay[day] = byDay[day] || []).push(n);
+  });
+  const days = Object.keys(byDay).sort((a,b)=> a<b?1:-1);
+  if(!days.length){ wrap.innerHTML = `<div class="ar-tag">No activity for this filter</div>`; return; }
+  wrap.innerHTML = days.map(d=>{
+    const pretty = new Date(d+"T00:00").toLocaleDateString(undefined,{weekday:'short', month:'short', day:'numeric'});
+    const rows = byDay[d].map(n=>{
+      const icon = n.t==='Call' ? '📞' : n.t==='Email' ? '✉️' : n.t==='Escalation' ? '⚠️' : n.t==='Follow-up' ? '🔁' : '📝';
+      const who = n.author || inv.assigned || 'Collector';
+      const initials = (who||'C').split(' ').map(p=>p[0]).join('').slice(0,2);
+      return `<div class="ar-evt">
+        <div class="ar-glyph" aria-hidden="true">${icon}</div>
+        <div class="ar-evtcard">
+          <div class="ar-evt-top">
+            <div class="ar-evt-meta">
+              <span><span class="ar-ava" title="${esc(who)}">${initials}</span> ${esc(who)}</span>
+              <span>${esc(n.ts)}</span>
+              ${n.outcome ? `<span class="ar-tag">${esc(n.outcome)}</span>` : ''}
+            </div>
+            ${n.flag ? `<span class="ar-tag">${esc(n.flag)}</span>` : ''}
+          </div>
+          <div class="ar-evt-body">${esc(n.k)}</div>
+        </div>
+      </div>`;
+    }).join('');
+    return `<div class="ar-day">${pretty}</div>` + rows;
+  }).join('');
+}
+
+/* ===== Templates + Composer ===== */
+const TPL = {
+  call:     ({account,id})                 => `Called ${account} regarding ${id}; no answer, voicemail left with callback number.`,
+  promise:  ({account,id,amount,expected}) => `${account} promised to pay ${money(amount)} for ${id} by ${expected||'TBD'}.`,
+  broken:   ({id,expected})                => `Promise broken for ${id}; expected ${expected||'previous date'} — initiating escalation assessment.`,
+  reminder: ({account,id,due})             => `Reminder sent to ${account} about ${id}, due ${due}.`
+};
+$('#tplSelect').addEventListener('change', e=>{
+  const inv = invoices.find(i=>i.id===currentId); if(!inv) return;
+  const t = e.target.value; if(!t) return;
+  $('#noteText').value = TPL[t]({account:inv.account,id:inv.id,amount:inv.amount,expected:inv.expected,due:inv.due});
+  $('#noteText').dispatchEvent(new Event('input'));
+  $('#noteText').focus();
+});
+const MAX = 500;
+$('#noteText').addEventListener('input', ()=>{
+  const v = $('#noteText').value; $('#noteCount').textContent = `${v.length} / ${MAX}`;
+  if(v.length>MAX){ $('#noteText').value = v.slice(0,MAX); $('#noteCount').textContent = `${MAX} / ${MAX}`; }
+});
+function addNote(kind=null){
+  const inv=invoices.find(i=>i.id===currentId); if(!inv) return;
+  const txt=$('#noteText').value.trim(); if(!txt && !kind) return;
+  inv.notes.push({t: kind || 'Note', k: txt || (kind+' logged'), ts: nowIso(), author: inv.assigned});
+  $('#noteText').value=''; $('#noteText').dispatchEvent(new Event('input'));
+  renderTimeline(inv); renderFollowups();
+}
+$('#noteAdd').addEventListener('click', ()=> addNote(null));
+document.querySelectorAll('[data-type]').forEach(b=> b.addEventListener('click', ()=> addNote(b.dataset.type)) );
+$('#noteText').addEventListener('keydown', e=>{ if((e.key==='Enter') && (e.metaKey||e.ctrlKey)){ e.preventDefault(); addNote(null); } });
+
+/* ===== Search & Filter + Boot ===== */
+$('#arSearch').addEventListener('input', renderRows);
+$('#arFilter').addEventListener('change', renderRows);
+renderRows(); renderRollups(); renderFollowups(); startSlaTicker();
+if(invoices[0]) openDrawer(invoices[0].id);
+</script>
+</body>
+</html>

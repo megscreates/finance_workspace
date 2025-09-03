@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initCollectionsTimeline();
   initMasterGrid();
   initCollectionsConfig();
+  initServiceTabs();
   initAdmin();
   // Apply any security/feature gates once on load
   try { applySecurityGates(); } catch {}
@@ -1573,7 +1574,10 @@ function initSubtabs(){
     // UX nicety: focus the search box when entering Dashboard > Search
     if (target === 'dash-search') {
       const ps = document.getElementById('dashSearch');
-      if (ps) ps.focus();
+      if (ps) {
+        try { ps.focus({ preventScroll: true }); }
+        catch { try { ps.focus(); } catch {} }
+      }
     }
 
     // Close sidebar widget gallery if open to prevent overlay blocking
@@ -1608,27 +1612,46 @@ function initSubtabs(){
 }
 
 function initNavSubJumps(){
-  // Left-rail mini links that jump to a subtab
+  // Cancel all dummy anchors so the URL never becomes index.html#
+  document.addEventListener('click', (e)=>{
+    const a = e.target.closest('a[href="#"]');
+    if (a) { e.preventDefault(); e.stopPropagation(); }
+  });
+
+  // Left-rail mini links that jump to a subtab (data-subtab-jump="service-wip", etc.)
   document.addEventListener('click', (e)=>{
     const link = e.target.closest('[data-subtab-jump]');
     if(!link) return;
+    e.preventDefault(); // <-- block # navigation
+    e.stopPropagation();
+
     const subtab = link.dataset.subtabJump;
     const btn = document.querySelector(`.subtab[data-subtab="${subtab}"]`);
     if(btn) btn.click();
-    // Update left-rail state
-    document.querySelectorAll('.nav-subitem').forEach(a=>{
-      a.classList.toggle('is-current', a === link);
-    });
-  }, { passive:true });
 
-  // Main nav item click: jump to its Overview subtab for that section
+    // Update left-rail highlight only within the current subgroup
+    const group = link.closest('.nav-subgroup');
+    if(group){
+      group.querySelectorAll('.nav-subitem').forEach(a=>{
+        a.classList.toggle('is-current', a === link);
+      });
+    }
+  });
+
+  // Main nav item click: jump to its Overview (or first subitem) without changing hash
   document.addEventListener('click', (e)=>{
     const item = e.target.closest('.nav-item');
     if(!item) return;
+
+    // If it's a real link (not '#'), leave it alone
+    const href = item.getAttribute('href');
+    if (href && href !== '#') return;
+
+    e.preventDefault(); // <-- block # navigation
+    e.stopPropagation();
+
     const subgroup = item.nextElementSibling;
     if(subgroup && subgroup.classList && subgroup.classList.contains('nav-subgroup')){
-      e.preventDefault();
-      // Map aria-label to subtab prefix
       const label = subgroup.getAttribute('aria-label')||'';
       const map = {
         'Home subtabs':'dash',
@@ -1643,6 +1666,7 @@ function initNavSubJumps(){
       };
       const prefix = map[label];
       let targetId = prefix ? `${prefix}-overview` : null;
+
       // Fallback to first left-rail subitem if no overview exists
       if(!document.querySelector(`.subtab[data-subtab="${targetId}"]`)){
         const first = subgroup.querySelector('.nav-subitem');
@@ -1650,10 +1674,10 @@ function initNavSubJumps(){
       }
       if(targetId){
         const btn = document.querySelector(`.subtab[data-subtab="${targetId}"]`);
-        if(btn) btn.click();
+        btn?.click();
       }
     }
-  }, { passive:false });
+  });
 }
 
 // ------------------------------ Security Gates -----------------------------
@@ -4001,3 +4025,729 @@ function setupScopedWidgetBoot(){
   // Persist notes per-scope
   grid.querySelectorAll('.notes-area').forEach(ta=>{ const key=ta.dataset.notesKey; try{ ta.value = localStorage.getItem(key)||''; }catch{} ta.addEventListener('input', ()=>{ try{ localStorage.setItem(key, ta.value||''); }catch{} }); });
 }
+
+// Neutralize dummy anchors so the URL doesn't become index.html#
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href="#"]');
+  if (a) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
+// ------------------------------ Service Tabs (Codepen port) ----------------
+/* ──────────────────────────────────────────────────────────────
+   Service: WIP, Billing, T&M, Pricing, Rules
+   Soft-Glass, localStorage-backed, zero external deps
+   IDs used are the ones in your index.html panel blocks
+   ────────────────────────────────────────────────────────────── */
+
+function initServiceTabs() {
+  // ---------- Config (importer) ----------
+  const IMPORTER = {
+    mode: 'none', // 'none' | 'gas'
+    gasUrl: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec'
+  };
+  try { document.getElementById('modeBadge')?.textContent = `Importer: ${IMPORTER.mode}`; } catch {}
+
+  // ---------- Utilities ----------
+  const $ = (s, c = document) => c.querySelector(s);
+  const $$ = (s, c = document) => Array.from(c.querySelectorAll(s));
+  const esc = s => String(s ?? '');
+  const csvCell = s => {
+    s = String(s ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  function showToast(message, type) {
+    const c = ensureToastContainer();
+    const t = document.createElement('div'); t.className = 'toast ' + (type || 'info'); t.textContent = message;
+    c.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 350); }, 2000);
+  }
+  function ensureToastContainer() {
+    let c = document.getElementById('toastContainer');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'toastContainer';
+      c.setAttribute('aria-live', 'polite');
+      c.setAttribute('aria-atomic', 'true');
+      Object.assign(c.style, { position: 'fixed', right: '16px', bottom: '16px', display: 'grid', gap: '8px', zIndex: 99999 });
+      document.body.appendChild(c);
+    }
+    return c;
+  }
+  const persist = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+  const restore = (k, d) => { try { return JSON.parse(localStorage.getItem(k) || 'null') ?? d; } catch { return d; } };
+  const setUndo = (text, action) => {
+    const bar = $('#undoBar'); if (!bar) return action && action();
+    $('#undoText').textContent = text;
+    bar.classList.add('show');
+    $('#undoBtn').onclick = () => { bar.classList.remove('show'); action && action(); };
+    setTimeout(() => bar.classList.remove('show'), 5000);
+  };
+
+  // ---------- Pricing Engine ----------
+  const PRK = 'svc.pricing.v1';
+  const Pricing = {
+    data: restore(PRK, {
+      base: { "MAT-1001": 45, "MAT-2200": 25, "MAT-3000": 120, "MAT-1100": 18 },
+      rules: [{ type: 'rep', key: '@jane', sku: '*', labor: 100, drive: 40 }, { type: 'customer', key: 'Acme Corp', sku: 'MAT-1001', price: 49 }],
+      defaults: { labor: 95, drive: 35 }
+    }),
+    save() { persist(PRK, this.data); },
+    rates({ customer = null, rep = null }) {
+      const out = { ...this.data.defaults };
+      const rr = this.data.rules.find(r => r.type === 'rep' && r.key === rep);
+      const rc = this.data.rules.find(r => r.type === 'customer' && r.key === customer);
+      if (rr) { if (rr.labor != null) out.labor = rr.labor; if (rr.drive != null) out.drive = rr.drive; }
+      if (rc) { if (rc.labor != null) out.labor = rc.labor; if (rc.drive != null) out.drive = rc.drive; }
+      return out;
+    },
+    matPrice({ sku, customer = null, rep = null }) {
+      let rule = this.data.rules.find(r => r.type === 'customer' && r.key === customer && r.sku === sku && r.price != null)
+        || this.data.rules.find(r => r.type === 'rep' && r.key === rep && r.sku === sku && r.price != null)
+        || this.data.rules.find(r => r.type === 'customer' && r.key === customer && r.sku === '*' && r.price != null)
+        || this.data.rules.find(r => r.type === 'rep' && r.key === rep && r.sku === '*' && r.price != null);
+      return rule ? rule.price : (this.data.base[sku] ?? 50);
+    }
+  };
+
+  // ---------- Service State ----------
+  const WIP_KEY = 'svc.wip.state.v1';
+  const COLS_KEY = 'svc.wip.cols.v1';
+  const VIEWS_KEY = 'svc.views.v1';
+  const REVIEWS_KEY = 'svc.review.views.v1';
+
+  const defaults = {
+    columns: ["Pending", "Sales Review", "Approved", "Paid", "Rejected"],
+    records: [
+      rec({ id: "INV-1001", channel: "#jobs-acme-348", requester: "@alex", customer: "Acme Corp", rep: "@sara",
+        techs: ["@sam", "@jo"], drive: 3, labor: 7,
+        mats: [{ sku: "MAT-1001", desc: '1" PVC Coupling', qty: 4, unit: "ea" }, { sku: "MAT-2200", desc: 'Sealant', qty: 2, unit: "tube" }],
+        scope: "Replace leaking PVC couplings at RTU.", notes: "Urgent", status: "Pending"
+      }),
+      rec({ id: "INV-1002", channel: "#jobs-beta-992", requester: "@jane", customer: "Beta LLC", rep: "@jane",
+        techs: ["@lee"], drive: 1.5, labor: 2, mats: [{ sku: "MAT-3000", desc: "Thermostat", qty: 1, unit: "ea" }],
+        scope: "Replace faulty thermostat and recalibrate.", notes: "", status: "Sales Review",
+        salesEdits: { salesPrice: 980, credits: 0, billTo: "Beta LLC, 3 Harbor Way", shipTo: "Beta Plant, Dock 2", detail: "line_with_prices", customerNotes: "Net 15", internalNotes: "Bundle with PO 8892.", attachments: [] }
+      })
+    ],
+    tm: []
+  };
+  const state = restore(WIP_KEY, defaults);
+  state.columns = restore(COLS_KEY, state.columns);
+  const views = restore(VIEWS_KEY, {});        // {name: {wipSearch}}
+  const reviewViews = restore(REVIEWS_KEY, {}); // {name: {revSearch}}
+
+  function rec(o) { return { ...o, log: [`Submitted via Slack form in ${o.channel}`] }; }
+  function estimateTotal(r) {
+    const rt = Pricing.rates({ customer: r.customer, rep: r.rep });
+    const mats = r.mats.reduce((s, m) => s + m.qty * Pricing.matPrice({ sku: m.sku, customer: r.customer, rep: r.rep }), 0);
+    return r.labor * rt.labor + r.drive * rt.drive + mats;
+  }
+  const fmatch = q => {
+    q = (q || '').toLowerCase().trim();
+    return r => !q || [r.id, r.channel, r.customer, r.rep, r.scope, r.status].join(' ').toLowerCase().includes(q);
+  };
+
+  // ---------- WIP (Kanban) ----------
+  bind('#wip-search', 'input', renderWip);
+  bind('#wip-new', 'click', () => {
+    const id = "INV-" + Math.floor(2000 + Math.random() * 800);
+    const recX = rec({
+      id, channel: "#jobs-acme-348", requester: "@ana", customer: "Acme Corp", rep: "@sara",
+      techs: ["@tech1"], drive: +(Math.random() * 3).toFixed(1), labor: +(2 + Math.random() * 6).toFixed(1),
+      mats: [{ sku: "MAT-1001", desc: 'PVC union', qty: 2, unit: "ea" }], scope: "Auto scope", notes: "", status: "Pending"
+    });
+    state.records.unshift(recX); persist(WIP_KEY, state); renderWip();
+  });
+  bind('#wip-move', 'click', () => {
+    const q = $('#wip-search')?.value || '';
+    const target = $('#wip-move-target')?.value || 'Sales Review';
+    const rows = state.records.filter(fmatch(q));
+    const snapshot = rows.map(r => ({ id: r.id, prev: r.status }));
+    rows.forEach(r => { r.status = target; r.log.push(`Bulk moved → ${target}`); });
+    persist(WIP_KEY, state); renderWip(); renderBilling();
+    showToast(`Moved ${rows.length} item(s) → ${target}`);
+    setUndo(`Bulk moved ${rows.length}`, () => {
+      snapshot.forEach(s => { const r = state.records.find(x => x.id === s.id); if (r) r.status = s.prev; });
+      persist(WIP_KEY, state); renderWip(); renderBilling();
+    });
+  });
+
+  function renderWip() {
+    const board = $('#wip-board'); if (!board) return;
+    board.innerHTML = '';
+    state.columns.forEach(col => {
+      const wrap = document.createElement('div');
+      wrap.className = 'kcol'; wrap.dataset.col = col;
+      wrap.innerHTML = `<div class="khead" draggable="true"><span>${col}</span><span class="handle">⋮⋮</span></div><div class="kbody" data-drop="${col}" role="list"></div>`;
+      const head = wrap.querySelector('.khead');
+      head.addEventListener('dragstart', e => { e.dataTransfer.setData('text/col', col); wrap.classList.add('dragging-col'); });
+      head.addEventListener('dragend', () => wrap.classList.remove('dragging-col'));
+      wrap.addEventListener('dragover', e => { if (e.dataTransfer.getData('text/col')) { e.preventDefault(); wrap.classList.add('drag-hot'); } });
+      wrap.addEventListener('dragleave', () => wrap.classList.remove('drag-hot'));
+      wrap.addEventListener('drop', e => {
+        const moved = e.dataTransfer.getData('text/col'); wrap.classList.remove('drag-hot');
+        if (!moved || moved === col) return;
+        const order = state.columns.slice(); const from = order.indexOf(moved), to = order.indexOf(col);
+        const prev = state.columns.slice();
+        order.splice(to, 0, ...order.splice(from, 1)); state.columns = order; persist(COLS_KEY, order); renderWip();
+        setUndo(`Moved column ${moved} → ${col}`, () => { state.columns = prev; persist(COLS_KEY, prev); renderWip(); });
+      });
+
+      const body = wrap.querySelector('.kbody');
+      body.addEventListener('dragover', e => { e.preventDefault(); body.classList.add('drop-hot'); });
+      body.addEventListener('dragleave', () => body.classList.remove('drop-hot'));
+      body.addEventListener('drop', e => {
+        e.preventDefault(); body.classList.remove('drop-hot');
+        const id = e.dataTransfer.getData('text/plain'); const rec = state.records.find(r => r.id === id);
+        if (!rec || rec.status === col) return;
+        const prev = rec.status; rec.status = col; rec.log.push(`Moved to ${col} (Kanban)`);
+        persist(WIP_KEY, state); renderWip(); renderBilling(rec.id);
+        setUndo(`Moved ${rec.id} → ${col}`, () => { rec.status = prev; persist(WIP_KEY, state); renderWip(); renderBilling(rec.id); });
+      });
+
+      state.records.filter(r => r.status === col).filter(fmatch($('#wip-search')?.value)).forEach(r => {
+        const card = document.createElement('div');
+        card.className = 'kcard'; card.draggable = true; card.dataset.id = r.id; card.tabIndex = 0;
+        card.innerHTML = `<div class="top"><strong>${r.id}</strong><span class="sml">$${estimateTotal(r).toFixed(2)}</span></div>
+          <div class="meta">${esc(r.channel)} • ${esc(r.requester)}</div>
+          <div class="kchips"><span class="badge">${r.techs.length} tech(s)</span><span class="badge">${r.mats.length} material(s)</span></div>
+          <div class="actions"><button class="btn" data-open>Open</button><button class="btn" data-remind>Remind</button></div>`;
+        card.addEventListener('dragstart', e => { card.classList.add('dragging'); e.dataTransfer.setData('text/plain', r.id); e.dataTransfer.effectAllowed = 'move'; });
+        card.addEventListener('dragend', () => card.classList.remove('dragging'));
+        card.addEventListener('dblclick', () => { openBillingDetail(r); jumpServiceTab('service-billing'); });
+        card.addEventListener('keydown', e => {
+          if (e.key === 'Enter') { openBillingDetail(r); jumpServiceTab('service-billing'); }
+          if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            e.preventDefault();
+            const idx = state.columns.indexOf(r.status);
+            const next = e.key === 'ArrowLeft' ? Math.max(0, idx - 1) : Math.min(state.columns.length - 1, idx + 1);
+            if (next !== idx) {
+              const prev = r.status; r.status = state.columns[next]; r.log.push(`Moved to ${r.status} (keyboard)`);
+              persist(WIP_KEY, state); renderWip(); renderBilling(r.id);
+              setUndo(`Moved ${r.id} → ${r.status}`, () => { r.status = prev; persist(WIP_KEY, state); renderWip(); renderBilling(r.id); });
+            }
+          }
+        });
+        card.querySelector('[data-open]').onclick = () => { openBillingDetail(r); jumpServiceTab('service-billing'); };
+        card.querySelector('[data-remind]').onclick = () => { r.log.push('Reminder sent'); persist(WIP_KEY, state); showToast('Reminder sent'); };
+        body.appendChild(card);
+      });
+      board.appendChild(wrap);
+    });
+
+    // Saved views (WIP)
+    $('#view-save')?.addEventListener('click', () => {
+      const name = $('#view-name')?.value.trim();
+      if (!name) return showToast('Name your view');
+      views[name] = { wipSearch: $('#wip-search')?.value || '' };
+      persist(VIEWS_KEY, views); refreshViewPickers();
+      showToast('WIP view saved');
+    });
+    $('#view-del')?.addEventListener('click', () => {
+      const name = $('#view-select')?.value;
+      if (!name) return;
+      delete views[name]; persist(VIEWS_KEY, views); refreshViewPickers(); renderWip();
+      showToast('WIP view deleted');
+    });
+    $('#view-select')?.addEventListener('change', () => {
+      const name = $('#view-select')?.value; if (!name) return;
+      $('#wip-search').value = views[name]?.wipSearch || ''; renderWip();
+    });
+  }
+
+  function refreshViewPickers() {
+    const vs = $('#view-select'); if (vs) vs.innerHTML = '<option value="">Views…</option>' + Object.keys(views).map(n => `<option>${esc(n)}</option>`).join('');
+    const rs = $('#revview-select'); if (rs) rs.innerHTML = '<option value="">Views…</option>' + Object.keys(reviewViews).map(n => `<option>${esc(n)}</option>`).join('');
+  }
+
+  const jumpServiceTab = (panelKey) => {
+    // Call your existing subtab system
+    const btn = document.querySelector(`.subnav:not(.is-hidden) .subtab[data-subtab="${panelKey}"]`)
+      || document.querySelector(`.subnav .subtab[data-subtab="${panelKey}"]`);
+    btn?.click?.();
+    // Fallback: toggle panels directly if needed
+    const p = document.querySelector(`[data-subtab-panel="${panelKey}"]`);
+    if (p) {
+      document.querySelectorAll('.subtab-panel').forEach(el => el.classList.add('is-hidden'));
+      p.classList.remove('is-hidden');
+    }
+  };
+
+  // ---------- Billing (formerly Review) ----------
+  bind('#rev-search', 'input', () => renderBilling());
+  bind('#rev-remind', 'click', () => {
+    const ids = $$('#rev-list input[type="checkbox"]:checked').map(cb => cb.dataset.id);
+    if (!ids.length) return showToast('Select items first.');
+    ids.forEach(id => { const r = state.records.find(x => x.id === id); if (r) r.log.push('Reminder sent'); });
+    persist(WIP_KEY, state); showToast(`Reminders sent: ${ids.length}`);
+  });
+  bind('#rev-apply-filtered', 'click', () => {
+    const edits = collectEditsFromDetail(); if (!edits) return showToast('Open a record first in Billing.');
+    const q = $('#rev-search')?.value || ''; const rows = state.records.filter(fmatch(q));
+    const snap = rows.map(r => ({ id: r.id, prev: r.salesEdits ? JSON.parse(JSON.stringify(r.salesEdits)) : null, prevStatus: r.status }));
+    rows.forEach(r => { r.salesEdits = JSON.parse(JSON.stringify(edits)); r.status = 'Sales Review'; r.log.push('Bulk edits applied (filtered)'); });
+    persist(WIP_KEY, state); renderWip(); renderBilling();
+    showToast(`Applied edits to ${rows.length} item(s)`); setUndo(`Applied to ${rows.length}`, () => {
+      snap.forEach(s => { const r = state.records.find(x => x.id === s.id); if (r) { r.salesEdits = s.prev; r.status = s.prevStatus; } });
+      persist(WIP_KEY, state); renderWip(); renderBilling();
+    });
+  });
+  bind('#rev-apply-selected', 'click', () => {
+    const edits = collectEditsFromDetail(); if (!edits) return showToast('Open a record first in Billing.');
+    const ids = $$('#rev-list input[type="checkbox"]:checked').map(cb => cb.dataset.id); if (!ids.length) return showToast('Select rows first.');
+    const rows = state.records.filter(r => ids.includes(r.id));
+    const snap = rows.map(r => ({ id: r.id, prev: r.salesEdits ? JSON.parse(JSON.stringify(r.salesEdits)) : null, prevStatus: r.status }));
+    rows.forEach(r => { r.salesEdits = JSON.parse(JSON.stringify(edits)); r.status = 'Sales Review'; r.log.push('Bulk edits applied (selected)'); });
+    persist(WIP_KEY, state); renderWip(); renderBilling();
+    showToast(`Applied edits to ${rows.length} item(s)`); setUndo(`Applied to ${rows.length}`, () => {
+      snap.forEach(s => { const r = state.records.find(x => x.id === s.id); if (r) { r.salesEdits = s.prev; r.status = s.prevStatus; } });
+      persist(WIP_KEY, state); renderWip(); renderBilling();
+    });
+  });
+  bind('#rev-changes-only', 'change', () => {
+    const id = $('#rev-detail strong')?.textContent?.split(' ')[0]; renderBilling(id);
+  });
+  bind('#rev-compose', 'click', () => {
+    const id = $('#rev-detail strong')?.textContent?.split(' ')[0];
+    const rec = state.records.find(r => r.id === id) || state.records[0];
+    if (!rec) return showToast('Open a record first');
+    openSlackComposer({ type: 'record', rec });
+  });
+
+  function renderBilling(openId) {
+    const list = $('#rev-list'); if (!list) return;
+    list.innerHTML = '';
+    state.records.filter(fmatch($('#rev-search')?.value)).forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'rItem';
+      row.innerHTML = `<input type="checkbox" data-id="${r.id}"><div><strong>${r.id}</strong> — <span class="badge">${r.status}</span><br><span class="sml">${esc(r.channel)} • ${esc(r.customer)}</span></div>`;
+      row.addEventListener('click', e => { if (e.target.type === 'checkbox') return; openBillingDetail(r); });
+      list.appendChild(row);
+    });
+    if (openId) { const rec = state.records.find(x => x.id === openId); if (rec) openBillingDetail(rec); }
+  }
+
+  function openBillingDetail(r) {
+    const d = $('#rev-detail'); if (!d) return;
+    const se = r.salesEdits || {};
+    const baseline = {
+      salesPrice: Math.round(estimateTotal(r)), credits: 0,
+      billTo: '', shipTo: '', detail: (se.detail || 'lump'),
+      scope: r.scope, customerNotes: '', internalNotes: ''
+    };
+    const warn = [];
+    const eff = se.detail || 'lump';
+    if (eff === 'lump' && !(se.salesPrice > 0)) warn.push('Lump sum requires a positive Sales Price.');
+    if (!se.billTo) warn.push('Bill-To is missing.');
+    if (!se.shipTo) warn.push('Ship-To is missing.');
+    if ((se.credits || 0) < 0) warn.push('Credits cannot be negative.');
+    const canApprove = warn.length === 0;
+    se.attachments = se.attachments || [];
+
+    d.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div><strong>${r.id}</strong> <span class="badge">${r.status}</span> <span class="badge">${esc(r.channel)}</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="d-compose">Compose</button>
+          <button class="btn" id="d-csv">Export CSV</button>
+          <button class="btn" id="d-prev">Preview</button>
+          <button class="btn primary" id="d-approve"${canApprove ? '' : ' disabled'}>${canApprove ? 'Apply & Approve' : 'Approve anyway (override)'}</button>
+          <button class="btn" id="d-reject">Reject</button>
+        </div>
+      </div>
+      ${warn.length ? `<div class="panel" style="border-color:#ffd6a6;background:#fff7ed">
+        <strong>Warnings:</strong><ul style="margin:6px 0 0 16px">${warn.map(w => `<li>${esc(w)}`).join('')}</ul>
+        ${!canApprove ? '<div class="sml">You can still approve with the override button.</div>' : ''}
+      </div>` : ''}
+
+      <div class="panel" style="margin-top:8px">
+        <h3>Tech Submission</h3>
+        ${kv("Requester", r.requester)}${kv("Sales Rep", r.rep || "—")}
+        ${kv("Techs", r.techs.join(', '))}
+        ${kv("Drive Hours", r.drive)}${kv("Labor Hours", r.labor)}
+        <div><strong>Materials</strong>${matTable(r.mats)}</div>
+        <div><strong>Scope</strong><div class="badge" style="background:#fff">${esc(r.scope)}</div></div>
+        <div class="sml">Log:<br>${r.log.map(x => '• ' + esc(x)).join('<br>')}</div>
+      </div>
+
+      <div class="panel" style="margin-top:8px">
+        <h3>Sales Edits <span id="changedCount" class="sml"></span></h3>
+        ${editRow("Sales Price","e-price", se.salesPrice ?? baseline.salesPrice, (se.salesPrice ?? baseline.salesPrice) !== baseline.salesPrice)}
+        ${editRow("Credits","e-credit", se.credits ?? baseline.credits, (se.credits ?? baseline.credits) !== baseline.credits)}
+        ${editRowText("Bill-To","e-bill", se.billTo ?? baseline.billTo, (se.billTo ?? baseline.billTo) !== baseline.billTo)}
+        ${editRowText("Ship-To","e-ship", se.shipTo ?? baseline.shipTo, (se.shipTo ?? baseline.shipTo) !== baseline.shipTo)}
+        <div class="kvM ${$('#rev-changes-only')?.checked && ((se.detail || 'lump') === 'lump') ? 'hide' : ''}">
+          <div>Detail ${(se.detail || 'lump') !== 'lump' ? '<span class="badge changed">changed</span>' : ''}</div>
+          <div><select id="e-detail" class="input">
+            <option value="lump" ${(se.detail || 'lump') === 'lump' ? 'selected' : ''}>Lump Sum</option>
+            <option value="line_with_prices" ${se.detail === 'line_with_prices' ? 'selected' : ''}>Line by line (with prices)</option>
+            <option value="line_no_prices" ${se.detail === 'line_no_prices' ? 'selected' : ''}>Line by line (without prices)</option>
+          </select></div>
+        </div>
+        ${editRowArea("Scope","e-scope", se.scope ?? baseline.scope, (se.scope ?? baseline.scope) !== baseline.scope)}
+        ${editRowArea("Customer Notes","e-cust", se.customerNotes ?? '', (se.customerNotes ?? '') !== '')}
+        ${editRowArea("Internal Notes","e-int", se.internalNotes ?? '', (se.internalNotes ?? '') !== '')}
+
+        <div class="panel" style="margin-top:10px">
+          <h3 style="margin-bottom:6px">Attachments</h3>
+          <div id="att-list" class="sml">${se.attachments.length ? '' : 'No attachments yet.'}</div>
+          <div style="display:grid;grid-template-columns:1fr 120px 120px auto;gap:6px;margin-top:8px">
+            <input id="att-name" class="input" placeholder="filename.pdf (simulate)">
+            <label class="sml" style="display:flex;align-items:center;gap:6px"><input id="att-include" type="checkbox" checked> Include on invoice</label>
+            <label class="sml" style="display:flex;align-items:center;gap:6px"><input id="att-internal" type="checkbox"> Internal only</label>
+            <button class="btn" id="att-add">Add</button>
+          </div>
+        </div>
+      </div>`;
+
+    // Attachments list
+    drawAttList(se.attachments);
+    // Changes count
+    $('#changedCount').textContent = $$('#rev-detail .badge.changed').length ? `• ${$$('#rev-detail .badge.changed').length} changed` : '';
+
+    // Wire actions
+    $('#d-compose').onclick = () => openSlackComposer({ type: 'record', rec: r });
+    $('#d-csv').onclick = () => exportRecordCSV(r, true);
+    $('#d-prev').onclick = () => openPreview(r, collectEdits());
+    $('#d-approve').onclick = () => {
+      r.salesEdits = collectEdits(); const prev = r.status; r.status = 'Approved'; r.log.push('Applied sales edits');
+      persist(WIP_KEY, state); renderWip(); renderBilling(r.id); showToast('Approved');
+      setUndo(`${r.id} approved`, () => { r.status = prev; persist(WIP_KEY, state); renderWip(); renderBilling(r.id); });
+    };
+    $('#d-reject').onclick = () => {
+      r.salesEdits = collectEdits(); const prev = r.status; r.status = 'Rejected'; r.log.push('Rejected');
+      persist(WIP_KEY, state); renderWip(); renderBilling(r.id); showToast('Rejected');
+      setUndo(`${r.id} rejected`, () => { r.status = prev; persist(WIP_KEY, state); renderWip(); renderBilling(r.id); });
+    };
+    $('#rev-changes-only').onchange = () => openBillingDetail(r);
+    $('#att-add').onclick = () => {
+      const name = $('#att-name').value.trim(); if (!name) return showToast('Enter a file name');
+      const item = { name, include: $('#att-include').checked, internal: $('#att-internal').checked };
+      se.attachments.push(item); drawAttList(se.attachments); $('#att-name').value = '';
+    };
+
+    function drawAttList(arr) {
+      const host = $('#att-list'); host.innerHTML = '';
+      if (!arr.length) { host.textContent = 'No attachments yet.'; return; }
+      arr.forEach((a, i) => {
+        const row = document.createElement('div'); row.className = 'sml'; row.style.display = 'flex'; row.style.gap = '8px'; row.style.alignItems = 'center';
+        row.innerHTML = `<span class="badge">${esc(a.name)}</span>
+          <label><input type="checkbox" ${a.include ? 'checked' : ''} data-k="include"> include</label>
+          <label><input type="checkbox" ${a.internal ? 'checked' : ''} data-k="internal"> internal</label>
+          <button class="btn" data-del="${i}">Remove</button>`;
+        row.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.onchange = () => { a[cb.dataset.k] = cb.checked; });
+        row.querySelector('[data-del]').onclick = () => { arr.splice(i, 1); drawAttList(arr); };
+        host.appendChild(row);
+      });
+    }
+    function collectEdits() {
+      return {
+        salesPrice: +$('#e-price').value || 0, credits: +$('#e-credit').value || 0,
+        billTo: $('#e-bill').value, shipTo: $('#e-ship').value,
+        detail: $('#e-detail').value, scope: $('#e-scope').value,
+        customerNotes: $('#e-cust').value, internalNotes: $('#e-int').value,
+        attachments: (se.attachments || []).map(a => ({ ...a }))
+      };
+    }
+  }
+
+  function kv(k, v) { return `<div class="kvM"><div>${esc(k)}</div><div>${esc(v)}</div></div>`; }
+  function editRow(k, id, val, changed) { return `<div class="kvM"><div>${esc(k)} ${changed ? '<span class="badge changed">changed</span>' : ''}</div><div><input id="${id}" class="input mono" type="number" step="0.01" value="${esc(val)}" /></div></div>`; }
+  function editRowText(k, id, val, changed) { return `<div class="kvM"><div>${esc(k)} ${changed ? '<span class="badge changed">changed</span>' : ''}</div><div><input id="${id}" class="input" value="${esc(val)}" /></div></div>`; }
+  function editRowArea(k, id, val, changed) { return `<div class="kvM"><div>${esc(k)} ${changed ? '<span class="badge changed">changed</span>' : ''}</div><div><textarea id="${id}" class="input" rows="3">${esc(val)}</textarea></div></div>`; }
+  function matTable(mats) {
+    return `<table class="tableP"><thead><tr><th>SKU</th><th>Desc</th><th>Qty</th><th>UOM</th></tr></thead><tbody>
+      ${mats.map(m => `<tr><td>${esc(m.sku)}</td><td>${esc(m.desc)}</td><td>${m.qty}</td><td>${esc(m.unit)}</td></tr>`).join('')}</tbody></table>`;
+  }
+
+  // ---------- CSV export + optional GAS POST ----------
+  async function postToImporter(csv) {
+    if (IMPORTER.mode !== 'gas') return { ok: false, skipped: true };
+    try {
+      const res = await fetch(IMPORTER.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv });
+      const json = await res.json().catch(() => ({}));
+      return { ok: true, response: json };
+    } catch (e) { return { ok: false, error: String(e) }; }
+  }
+  function exportRecordCSV(r, sendToo) {
+    const header = "InventoryID,Qty,UOM,Location,Description\n";
+    const rows = r.mats.map(m => [m.sku, m.qty, m.unit, "MAIN", m.desc].map(csvCell).join(',')).join('\n');
+    const csv = header + rows + '\n';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `${r.id}-materials.csv`; document.body.appendChild(a); a.click(); a.remove();
+    showToast('CSV exported');
+    if (sendToo) postToImporter(csv).then(res => { if (res.skipped) return; showToast(res.ok ? 'Importer accepted CSV' : 'Importer error'); });
+  }
+
+  function openPreview(r, opts) {
+    const html = renderInvoice(r, opts);
+    const body = $('#inv-body'); if (!body) return;
+    body.innerHTML = html; $('#inv-modal')?.classList.add('show');
+  }
+  bind('#inv-modal', 'click', e => { if (e.target.id === 'inv-modal' || e.target.classList.contains('inv-close')) $('#inv-modal')?.classList.remove('show'); });
+
+  function renderInvoice(r, opts) {
+    const lines = buildLines(r, opts.detail || 'lump');
+    const subtotal = (opts.detail || 'lump') === 'lump' ? Math.max(opts.salesPrice || estimateTotal(r), 0) : lines.reduce((s, l) => s + l.amount, 0);
+    const total = Math.max(subtotal - (opts.credits || 0), 0);
+    const att = (opts.attachments || []).filter(a => a.include && !a.internal);
+    return `<div><div style="display:flex;justify-content:space-between;align-items:center"><h3>Mock Invoice — ${r.id}</h3><button class="inv-close">✕</button></div>
+      <p class="sml">${esc(r.channel)} • Customer: ${esc(r.customer || '—')} • Rep: ${esc(r.rep || '—')}</p>
+      ${
+        (opts.detail || 'lump') === 'lump'
+          ? `<table class="tableP"><thead><tr><th>Description</th><th>Qty</th><th>UOM</th><th>Price</th><th>Amount</th></tr></thead><tbody>
+              <tr><td>Lump Sum — ${esc(opts.scope || r.scope)}</td><td>1</td><td>job</td><td>$${subtotal.toFixed(2)}</td><td>$${subtotal.toFixed(2)}</td></tr></tbody></table>`
+          : `<table class="tableP"><thead><tr><th>Description</th><th>Qty</th><th>UOM</th><th>Price</th><th>Amount</th></tr></thead><tbody>
+              ${lines.map(l => `<tr><td>${esc(l.desc)}</td><td>${l.qty}</td><td>${esc(l.uom)}</td><td>$${l.price.toFixed(2)}</td><td>$${l.amount.toFixed(2)}</td></tr>`).join('')}</tbody></table>`
+      }
+      <p><strong>Credits:</strong> $${(opts.credits || 0).toFixed(2)} &nbsp; <strong>Total:</strong> $${total.toFixed(2)}</p>
+      ${att.length ? `<p class="sml"><strong>Attachments:</strong> ${att.map(a => esc(a.name)).join(', ')}</p>` : ''}
+      <p class="sml"><strong>Customer Notes:</strong> ${esc(opts.customerNotes || '')}<br><strong>Internal:</strong> ${esc(opts.internalNotes || '')}</p></div>`;
+  }
+  function buildLines(r, detail) {
+    const rt = Pricing.rates({ customer: r.customer, rep: r.rep }); const a = [];
+    if (detail !== 'lump') {
+      if (r.labor > 0) a.push({ desc: `Labor — ${r.labor} hour(s)`, qty: r.labor, uom: 'hr', price: rt.labor, amount: r.labor * rt.labor });
+      if (r.drive > 0) a.push({ desc: `Drive — ${r.drive} hour(s)`, qty: r.drive, uom: 'hr', price: rt.drive, amount: r.drive * rt.drive });
+      r.mats.forEach(m => { const p = Pricing.matPrice({ sku: m.sku, customer: r.customer, rep: r.rep }); a.push({ desc: `Material — ${m.desc}`, qty: m.qty, uom: m.unit, price: p, amount: p * m.qty }); });
+    }
+    return a;
+  }
+
+  // ---------- T&M ----------
+  bind('#tm-search', 'input', renderTM);
+  bind('#tm-new', 'click', () => {
+    const n = state.tm.length + 1;
+    const row = {
+      ticket: 'T&M-' + String(1000 + n), channel: '#jobs-acme-348', techs: ['@sam'],
+      drive: +(Math.random() * 2).toFixed(1), labor: +(2 + Math.random() * 6).toFixed(1),
+      mats: [{ sku: 'MAT-1100', desc: 'Tape', qty: 1, unit: 'roll' }],
+      scope: 'Leak check & tape', slack: [{ from: 'system', text: 'Created from Slack form', ts: new Date().toLocaleTimeString() }]
+    };
+    state.tm.unshift(row); renderTM(); openTMThread(row);
+  });
+  bind('#tm-compose', 'click', () => openSlackComposer({ type: 'tm' }));
+  bind('#tm-export', 'click', async () => {
+    const ids = $$('#tm-table tbody input[type="checkbox"]:checked').map(cb => cb.dataset.id);
+    if (!ids.length) return showToast('Select entries first.');
+    const selected = state.tm.filter(r => ids.includes(r.ticket));
+    const rows = selected.flatMap(r => r.mats.map(m => ({ InventoryID: m.sku, Qty: m.qty, UOM: m.unit, Location: 'MAIN', Description: m.desc })));
+    const header = "InventoryID,Qty,UOM,Location,Description\n";
+    const csv = header + rows.map(r => [r.InventoryID, r.Qty, r.UOM, r.Location, r.Description].map(csvCell).join(',')).join('\n') + '\n';
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = 'tm-materials.csv'; document.body.appendChild(a); a.click(); a.remove();
+    showToast(`CSV exported (${rows.length} lines)`);
+    if (IMPORTER.mode === 'gas') {
+      const res = await postToImporter(csv); showToast(res.ok ? 'Importer accepted CSV' : 'Importer error');
+    }
+  });
+  bind('#tm-all', 'change', e => $$('#tm-table tbody input[type="checkbox"]').forEach(cb => cb.checked = e.target.checked));
+  bind('#tm-post', 'click', () => {
+    const row = getOpenTMThread(); const t = $('#tm-msg').value.trim(); if (!row || !t) return;
+    pushTM(row, 'me', t); $('#tm-msg').value = '';
+  });
+  bind('#tm-ask', 'click', () => { const row = getOpenTMThread(); if (!row) return; pushTM(row, 'me', 'Please confirm bill-to & attach W-9.'); });
+  bind('#tm-approve', 'click', () => { const row = getOpenTMThread(); if (!row) return; pushTM(row, 'sales', 'Approved — proceed'); });
+  bind('#tm-reject', 'click', () => { const row = getOpenTMThread(); if (!row) return; pushTM(row, 'sales', 'Rejected — missing PO'); });
+
+  function renderTM() {
+    const tb = $('#tm-table tbody'); if (!tb) return;
+    tb.innerHTML = '';
+    const rows = state.tm.filter(fmatch($('#tm-search')?.value));
+    rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td><input type="checkbox" data-id="${row.ticket}"></td>
+        <td>${row.ticket}</td><td>${row.channel}</td><td>${row.techs.join(', ')}</td>
+        <td class="mono">${row.drive}h</td><td class="mono">${row.labor}h</td>
+        <td>${row.mats.length} items</td><td class="sml">${esc(row.scope)}</td>`;
+      tr.addEventListener('click', e => { if (e.target.type === 'checkbox') return; openTMThread(row); });
+      tb.appendChild(tr);
+    });
+    updateTMTotals(rows);
+  }
+  function tmValue(row) {
+    const rt = Pricing.rates({ customer: null, rep: null });
+    const labor$ = (row.labor || 0) * rt.labor;
+    const drive$ = (row.drive || 0) * rt.drive;
+    const mats$ = row.mats.reduce((s, m) => s + (m.qty * Pricing.matPrice({ sku: m.sku, customer: null, rep: null })), 0);
+    return { labor$, drive$, mats$, total: labor$ + drive$ + mats$ };
+  }
+  function rollup(rows) { return rows.reduce((acc, r) => { const v = tmValue(r); acc.l += v.labor$; acc.d += v.drive$; acc.m += v.mats$; return acc; }, { l: 0, d: 0, m: 0 }); }
+  function updateTMTotals(rows) {
+    const agg = rollup(rows); const g = agg.l + agg.d + agg.m;
+    const text = `Totals (visible): Labor $${agg.l.toFixed(2)} • Drive $${agg.d.toFixed(2)} • Materials $${agg.m.toFixed(2)} • Grand $${g.toFixed(2)}`;
+    $('#tm-footer').textContent = text; $('#tm-totals').textContent = text;
+  }
+  let __tmOpen = null;
+  function openTMThread(row) {
+    __tmOpen = row;
+    const thread = $('#tm-thread'); if (!thread) return;
+    thread.innerHTML = '';
+    (row.slack || []).forEach(m => {
+      const div = document.createElement('div'); div.className = 'msg ' + (m.from || '');
+      div.innerHTML = `<div class="sml">${m.from} • ${m.ts}</div><div>${esc(m.text)}</div>`;
+      thread.appendChild(div);
+    });
+    thread.scrollTop = thread.scrollHeight;
+  }
+  function getOpenTMThread() { return __tmOpen; }
+  function pushTM(row, from, text) {
+    const msg = { from, text, ts: new Date().toLocaleTimeString() };
+    row.slack = row.slack || []; row.slack.push(msg);
+    renderTM(); openTMThread(row);
+    const feed = $('#tm-feed'); const evt = document.createElement('div'); evt.className = 'event'; evt.textContent = `${from}: ${text}`; feed.prepend(evt);
+  }
+
+  // ---------- Pricing ----------
+  bind('#mat-add', 'click', () => {
+    const sku = $('#mat-sku')?.value.trim(), price = +($('#mat-price')?.value || 0);
+    if (!sku || !(price > 0)) return showToast('Enter SKU + price');
+    Pricing.data.base[sku] = price; Pricing.save(); drawPricing();
+    $('#mat-sku').value = ''; $('#mat-desc').value = ''; $('#mat-price').value = '';
+  });
+
+  // ---------- Rules ----------
+  bind('#rule-add', 'click', () => {
+    const type = $('#rule-type')?.value, key = $('#rule-key')?.value.trim(), sku = $('#rule-sku')?.value.trim() || '*';
+    const price = $('#rule-price')?.value ? +$('#rule-price').value : null;
+    const labor = $('#rule-labor')?.value ? +$('#rule-labor').value : null;
+    const drive = $('#rule-drive')?.value ? +$('#rule-drive').value : null;
+    if (!key) return showToast('Enter a Customer or @rep');
+    Pricing.data.rules.push({ type, key, sku, price, labor, drive }); Pricing.save(); drawPricing();
+  });
+  bind('#pricing-save', 'click', () => { Pricing.save(); showToast('Rules & prices saved'); });
+  bind('#pricing-load', 'click', () => {
+    const v = restore(PRK, null); if (v) { Pricing.data = v; drawPricing(); showToast('Loaded'); }
+  });
+  bind('#pricing-reset', 'click', () => { localStorage.removeItem(PRK); location.reload(); });
+
+  function drawPricing() {
+    const mt = $('#mat-table tbody'); if (mt) {
+      mt.innerHTML = '';
+      Object.entries(Pricing.data.base).sort((a, b) => a[0] < b[0] ? -1 : 1).forEach(([sku, price]) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="mono">${esc(sku)}</td><td>${esc(sku)}</td><td class="mono">$${(+price).toFixed(2)}</td>
+          <td><button class="btn" data-edit="${sku}">Edit</button> <button class="btn bad" data-del="${sku}">Delete</button></td>`;
+        mt.appendChild(tr);
+      });
+      mt.onclick = e => {
+        const sku = e.target.dataset.edit || e.target.dataset.del;
+        if (!sku) return;
+        if (e.target.dataset.edit) { $('#mat-sku').value = sku; $('#mat-desc').value = sku; $('#mat-price').value = Pricing.data.base[sku] ?? ''; }
+        if (e.target.dataset.del) { delete Pricing.data.base[sku]; Pricing.save(); drawPricing(); }
+      };
+    }
+    const rt = $('#rule-table tbody'); if (rt) {
+      rt.innerHTML = '';
+      Pricing.data.rules.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${esc(r.type)}</td><td>${esc(r.key)}</td><td class="mono">${esc(r.sku || '*')}</td>
+          <td class="mono">${r.price != null ? ('$' + (+r.price).toFixed(2)) : '—'}</td>
+          <td class="mono">${r.labor != null ? ('$' + (+r.labor).toFixed(2)) : '—'}</td>
+          <td class="mono">${r.drive != null ? ('$' + (+r.drive).toFixed(2)) : '—'}</td>
+          <td><button class="btn bad" data-rdel="${i}">Delete</button></td>`;
+        rt.appendChild(tr);
+      });
+      rt.onclick = e => { if (e.target.dataset.rdel) { Pricing.data.rules.splice(+e.target.dataset.rdel, 1); Pricing.save(); drawPricing(); } };
+    }
+  }
+
+  // ---------- Slack Composer ----------
+  bind('#sc-close', 'click', () => $('#slack-modal')?.classList.remove('show'));
+  bind('#sc-send', 'click', () => {
+    const ch = $('#sc-channel')?.value.trim() || '#general';
+    const msg = $('#sc-msg')?.value.trim() || '(no message)';
+    const attachInvoice = $('#sc-attach-invoice')?.checked;
+    const includeFiles = $('#sc-include-files')?.checked;
+    const ctx = window.__scCtx;
+    if (ctx?.type === 'record' && ctx.rec) {
+      ctx.rec.log.push(`Slack: sent to ${ch} — "${msg}"${attachInvoice ? ' [invoice]' : ''}${includeFiles ? ' [attachments]' : ''}`);
+      persist(WIP_KEY, state); renderBilling(ctx.rec.id);
+    } else if (ctx?.type === 'tm') {
+      showToast(`Posted T&M note to ${ch}`);
+    }
+    showToast(`Sent to ${ch}`); $('#slack-modal')?.classList.remove('show');
+  });
+
+  function openSlackComposer(ctx) {
+    window.__scCtx = ctx;
+    const channel = (ctx.type === 'record' && ctx.rec?.channel) || '#general';
+    $('#sc-channel')?.setAttribute('value', channel);
+    if ($('#sc-channel')) $('#sc-channel').value = channel;
+    if ($('#sc-msg')) $('#sc-msg').value = (ctx.type === 'record')
+      ? `@sales Please review invoice ${ctx.rec.id} for ${ctx.rec.customer}.`
+      : `@sales T&M tickets selected for export. See CSV + details in thread.`;
+    const host = $('#sc-files'); if (host) {
+      host.innerHTML = '';
+      if (ctx.type === 'record' && ctx.rec?.salesEdits?.attachments?.length) {
+        host.textContent = 'Sales attachments: ' + ctx.rec.salesEdits.attachments.map(a => a.name + (a.internal ? ' (internal)' : '')).join(', ');
+      } else host.textContent = 'No attachments.';
+    }
+    $('#slack-modal')?.classList.add('show');
+  }
+
+  // ---------- Helpers ----------
+  function bind(sel, ev, fn) { const el = $(sel); if (el) el.addEventListener(ev, fn); }
+
+  // First renders
+  renderWip(); renderBilling(); renderTM(); drawPricing();
+}
+
+function setupServiceTabs(){
+  const $ = s => document.querySelector(s);
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  // --------- Demo data for WIP/Review ---------
+  let jobs = [
+    { id:'INV-1001', channel:'Slack', requester:'Megs', customer:'Ardent Robotics', rep:'Sam', stage:'Pending', drive:2, labor:5, mats:[{sku:'MAT-1001',qty:2}], scope:'Replace drive belt', notes:'N/A' },
+    { id:'INV-1002', channel:'Email', requester:'Alex', customer:'Nimbus Co.', rep:'Priya', stage:'Sales Review', drive:1, labor:3, mats:[{sku:'MAT-2200',qty:1}], scope:'Sensor calibration', notes:'Follow SOP-22' },
+    { id:'INV-1003', channel:'Slack', requester:'Jordan', customer:'VoltWorks', rep:'Lee', stage:'Approved', drive:4, labor:8, mats:[{sku:'MAT-3000',qty:4}], scope:'Install new modules', notes:'Expedite' },
+  ];
+  function estimate(j){
+    const base = { drive:40, labor:100 };
+    const mats = (j.mats||[]).reduce((s,m)=> s + (Number(m.qty)||0)*(pricing?.base?.[m.sku]||25), 0);
+    return (j.drive||0)*base.drive + (j.labor||0)*base.labor + mats;
+  }
+  function renderKanban(){
+    const map = { 'Pending':'#kcol-pending', 'Sales Review':'#kcol-review', 'Approved':'#kcol-approved', 'Paid':'#kcol-paid', 'Rejected':'#kcol-rejected' };
+    Object.values(map).forEach(sel=>{ const c=$(sel); if(c) c.innerHTML=''; });
+    const q = ($('#svc-wip-search')?.value||'').toLowerCase().trim();
+    jobs.filter(j=> !q || Object.values(j).join(' ').toLowerCase().includes(q)).forEach(j=>{
+      const sel = map[j.stage]; const col = $(sel); if(!col) return;
+      const amt = estimate(j).toLocaleString(undefined,{style:'currency',currency:'USD'});
+      const card = document.createElement('div'); card.className='kcard';
+      card.innerHTML = `<div class="top"><div>${j.id}</div><div class="mono">${amt}</div></div>
+        <div class="meta">#jobs-${j.customer.toLowerCase().split(' ').join('-')} • @${(j.requester||'ops').toLowerCase()} • ${j.customer}</div>
+        <div class="kchips"><span class="chip">${(j.techs||2)} tech(s)</span><span class="chip">${(j.mats||[]).length} material(s)</span></div>
+        <div class="actions"><button class="btn" data-open="${j.id}">Billing</button><button class="btn" data-remind="${j.id}">Remind</button><button class="btn" data-slack="${j.id}">Slack</button></div>`;
+      col.appendChild(card);
+    });
+  }
+  function advance(id){ const order=['Pending','Sales Review','Approved','Paid']; const j=jobs.find(x=>x.id===id); if(!j) return; const i=order.indexOf(j.stage); j.stage = order[Math.min(order.length-1, i+1)] || j.stage; renderKanban(); renderReview(); }
+  function renderReview(){ const list = $('#svc-review-list'); if(!list) return; list.innerHTML = jobs.map(j=>`<div class="rItem"><input type="checkbox"/><div><strong>${j.id}</strong><div class="sml">${j.customer} — ${j.stage}</div></div><div style="margin-left:auto"><button class="mini-btn" data-open="${j.id}">Open</button></div></div>`).join(''); const detail=$('#svc-review-detail'); if(detail && jobs[0]) detail.innerHTML = `<div class="kvM"><div>Customer</div><div>${jobs[0].customer}</div><div>Requester</div><div>${jobs[0].requester}</div><div>Rep</div><div>${jobs[0].rep}</div></div>`; }
+  document.addEventListener('click', (e)=>{ const adv=e.target.closest('[data-advance]'); if(adv){ advance(adv.getAttribute('data-advance')); } const op=e.target.closest('[data-open]'); if(op){ document.querySelector('.subtab[data-subtab="service-billing"]')?.click(); openModal(op.getAttribute('data-open')); } if(e.target.closest('[data-remind]')){ alert('Reminder sent'); } if(e.target.closest('[data-slack]')){ alert('Opening Slack…'); } });
+
+  // --------- Pricing engine ---------
+  const PRK='svc.pricing.v1';
+  let pricing = JSON.parse(localStorage.getItem(PRK)||'null') || { base:{"MAT-1001":45,"MAT-2200":25,"MAT-3000":120,"MAT-1100":18}, rules:[{type:'rep',key:'@jane',sku:'*',labor:100,drive:40},{type:'customer',key:'Acme Corp',sku:'MAT-1001',price:49}] };
+  function savePricing(){ try{ localStorage.setItem(PRK, JSON.stringify(pricing)); }catch{} }
+  function renderMaterials(){ const tbody = $('#mat-table tbody'); if(!tbody) return; tbody.innerHTML = Object.entries(pricing.base).map(([sku,price])=>`<tr><td class="mono">${sku}</td><td>${sku}</td><td class="mono">${Number(price).toFixed(2)}</td><td><button class="mini-btn" data-del-mat="${sku}">Del</button></td></tr>`).join(''); }
+  function renderRules(){ const tbody=$('#rule-table tbody'); if(!tbody) return; tbody.innerHTML = (pricing.rules||[]).map((r,i)=>`<tr><td>${r.type}</td><td>${r.key}</td><td>${r.sku}</td><td>${r.price??''}</td><td>${r.labor??''}</td><td>${r.drive??''}</td><td><button class="mini-btn" data-del-rule="${i}">Del</button></td></tr>`).join(''); }
+  document.addEventListener('click', (e)=>{ const dm=e.target.closest('[data-del-mat]'); if(dm){ delete pricing.base[dm.getAttribute('data-del-mat')]; savePricing(); renderMaterials(); } const dr=e.target.closest('[data-del-rule]'); if(dr){ pricing.rules.splice(Number(dr.getAttribute('data-del-rule')),1); savePricing(); renderRules(); } });
+  $('#mat-add')?.addEventListener('click', ()=>{ const sku=$('#mat-sku').value.trim(); const price=Number($('#mat-price').value||0); if(!sku) return; pricing.base[sku]=price; savePricing(); renderMaterials(); });
+  $('#pricing-save')?.addEventListener('click', ()=>{ savePricing(); alert('Saved'); });
+  $('#pricing-load')?.addEventListener('click', ()=>{ pricing = JSON.parse(localStorage.getItem(PRK)||'{}')||pricing; renderMaterials(); renderRules(); });
+  $('#pricing-reset')?.addEventListener('click', ()=>{ localStorage.removeItem(PRK); pricing={ base:{}, rules:[] }; renderMaterials(); renderRules(); });
+  $('#rule-add')?.addEventListener('click', ()=>{ const r={ type:$('#rule-type').value, key:$('#rule-key').value.trim(), sku:$('#rule-sku').value.trim()||'*', price:($('#rule-price').value||'')||undefined, labor:($('#rule-labor').value||'')||undefined, drive:($('#rule-drive').value||'')||undefined }; pricing.rules.push(r); savePricing(); renderRules(); });
+
+  // --------- Modal ---------
+  function openModal(id){ const modal=document.getElementById('inv-modal'); const body=document.getElementById('inv-body'); if(!modal||!body) return; const j=jobs.find(x=>x.id===id); body.innerHTML = j ? `<h3>${j.id}</h3><div class="kvM"><div>Customer</div><div>${j.customer}</div><div>Requester</div><div>${j.requester}</div><div>Rep</div><div>${j.rep}</div></div>` : '—'; modal.classList.add('show'); }
+  document.querySelector('#inv-modal .inv-close')?.addEventListener('click', ()=> document.getElementById('inv-modal')?.classList.remove('show'));
+  document.getElementById('inv-modal')?.addEventListener('click', (e)=>{ if(e.target.id==='inv-modal') e.currentTarget.classList.remove('show'); });
+
+  // Initial renders
+  renderKanban(); renderReview(); renderMaterials(); renderRules();
+  $('#svc-wip-search')?.addEventListener('input', renderKanban);
+}
+
+
