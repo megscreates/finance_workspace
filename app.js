@@ -1,12 +1,8 @@
 // App bootstrap: charts + orders table with search/sort
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Apply stored UI scale early
-  try{
-    const g = JSON.parse(localStorage.getItem('admin.general.v1')||'null');
-    const scale = (g && g.uiScale) ? Number(g.uiScale) : 0.8;
-    if(!isNaN(scale)) document.documentElement.style.setProperty('--ui-scale', String(scale));
-  }catch{}
+  // Use fixed 100% base scale (manual scale removed; Auto-fit controls scaling)
+  try{ document.documentElement.style.setProperty('--ui-scale', '1'); }catch{}
   initCharts();
   initOrders();
   initSubtabs();
@@ -26,10 +22,13 @@ document.addEventListener('DOMContentLoaded', () => {
   initCollectionsTimeline();
   initMasterGrid();
   initCollectionsConfig();
+  initCollectionsFollowupModal();
   initServiceTabs();
   initAdmin();
   // Apply any security/feature gates once on load
   try { applySecurityGates(); } catch {}
+  initSidebarToggle();
+  initAutoFit();
   bootWidgets();
   // Scoped widgets disabled (Home only)
 });
@@ -54,6 +53,77 @@ function downloadJSON(obj, filename){
     const a = document.createElement('a'); a.href = url; a.download = filename || 'export.json';
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
   }catch{}
+}
+
+// Sidebar collapse toggle (with persistence)
+function initSidebarToggle(){
+  const btn = document.getElementById('sidebarToggleBtn');
+  if(!btn) return;
+  const KEY = 'ui.sidebarCollapsed.v1';
+  function applyState(collapsed){
+    document.body.classList.toggle('is-sidebar-collapsed', !!collapsed);
+    btn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+    btn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  }
+  try{
+    const saved = localStorage.getItem(KEY);
+    if(saved === '1') applyState(true);
+  }catch{}
+  btn.addEventListener('click', () => {
+    const next = !document.body.classList.contains('is-sidebar-collapsed');
+    applyState(next);
+    try{ localStorage.setItem(KEY, next ? '1' : '0'); }catch{}
+  });
+}
+
+// Auto-fit to window width (with gutters and persistence)
+function initAutoFit(){
+  const btn = document.getElementById('autoFitBtn');
+  const KEY = 'ui.autoFit.v1';
+  if(!btn) return;
+
+  function cssPxVar(name, fallback){
+    const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    const n = parseFloat(v || '');
+    return isNaN(n) ? (fallback || 0) : n;
+  }
+
+  function applyAutoScale(){
+    if(!document.body.classList.contains('is-autofit')) return;
+    const sidebarW = cssPxVar('--sidebar-width', 260);
+    const contentW = cssPxVar('--content-fixed-width', 1280);
+    const padX = cssPxVar('--content-pad-x', 52);
+    const base = sidebarW + contentW + padX; // unscaled app-shell width
+    const gutter = cssPxVar('--edge-gutter', 20);
+    const vw = Math.max(320, window.innerWidth || document.documentElement.clientWidth || base);
+    // target visual width leaves symmetric gutters
+    const target = Math.max(0, vw - 2*gutter);
+    let scale = base > 0 ? (target / base) : 1;
+    // clamp sensible range
+    scale = Math.max(0.65, Math.min(1, scale));
+    try{ document.documentElement.style.setProperty('--ui-scale', String(scale)); }catch{}
+    // reflect in button label for quick sanity (optional): keep icon only
+  }
+
+  function setState(on){
+    document.body.classList.toggle('is-autofit', !!on);
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.title = on ? 'Auto-fit: on' : 'Auto-fit: off';
+    try{ localStorage.setItem(KEY, on ? '1' : '0'); }catch{}
+    if(on){ applyAutoScale(); } else {
+      // Manual scale removed: always reset to 100%
+      try{ document.documentElement.style.setProperty('--ui-scale', '1'); }catch{}
+    }
+  }
+
+  // init from saved state
+  try{ setState(localStorage.getItem(KEY) === '1'); }catch{ setState(false); }
+
+  // toggle on click
+  btn.addEventListener('click', () => setState(!document.body.classList.contains('is-autofit')));
+  // recalc on resize/orientation changes
+  window.addEventListener('resize', applyAutoScale);
+  window.addEventListener('orientationchange', applyAutoScale);
 }
 
 async function bootWidgets(){
@@ -3087,29 +3157,19 @@ function initAdmin(){
     logo && (logo.value = general.logoUrl || '');
     theme.value = general.theme || 'glass';
     tz.value = general.timezone || 'UTC';
-    // UI scale slider setup
-    if(scale){
-      const s = (general.uiScale != null) ? Number(general.uiScale) : 0.8;
-      scale.value = isNaN(s) ? 0.8 : s;
-      if(scaleVal) scaleVal.textContent = `${Math.round((Number(scale.value)||0.8)*100)}%`;
-      scale.addEventListener('input', ()=>{
-        const v = Number(scale.value)||0.8;
-        if(scaleVal) scaleVal.textContent = `${Math.round(v*100)}%`;
-        // live preview of scaling
-        try{ document.documentElement.style.setProperty('--ui-scale', String(v)); }catch{}
-      });
-    }
+    // UI scale slider removed: lock to 100% and disable control if present
+    if(scale){ scale.value = 1.0; scale.disabled = true; }
+    if(scaleVal){ scaleVal.textContent = '100%'; }
     saveBtn.addEventListener('click', ()=>{
       general.appName = appName.value.trim() || 'App';
       general.logoUrl = logo ? (logo.value||'') : '';
       general.theme = theme.value || 'glass';
       general.timezone = tz.value || 'UTC';
-      if(scale){ general.uiScale = Number(scale.value)||0.8; }
       save();
       // Apply look immediately
       try{ document.body.setAttribute('data-look', general.theme); }catch{}
-      // Apply UI scale immediately
-      try{ if(scale) document.documentElement.style.setProperty('--ui-scale', String(general.uiScale||0.8)); }catch{}
+      // Manual UI scale removed; keep base at 100%
+      try{ document.documentElement.style.setProperty('--ui-scale', '1'); }catch{}
       // Sidebar brand text
       const brand = document.querySelector('.sidebar .brand span');
       if(brand) brand.textContent = general.appName || 'App';
@@ -3491,6 +3551,444 @@ function setPanelType(panel, type){
       body.innerHTML = '<div class="muted">Widget placeholder</div>';
   }
 }
+
+// ======================== AR Collections Follow-up Modal ========================
+function initCollectionsFollowupModal(){
+  // Inject modal HTML + floating action button
+  const markup = `
+  <svg xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
+    <symbol id="cf-i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></symbol>
+    <symbol id="cf-i-sliders" viewBox="0 0 24 24"><path d="M4 6h10M20 6h-2M4 12h6M20 12h-10M4 18h14M20 18h-1"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></symbol>
+    <symbol id="cf-i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></symbol>
+    <symbol id="cf-i-note" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2" ry="2"/><path d="M8 9h8M8 13h6"/></symbol>
+    <symbol id="cf-i-tag" viewBox="0 0 24 24"><path d="M20 10l-8 8-8-8 6-6h6z"/><circle cx="15" cy="9" r="1.5"/></symbol>
+    <symbol id="cf-i-bolt" viewBox="0 0 24 24"><path d="M13 2L6 14h6l-1 8 7-12h-6z"/></symbol>
+    <symbol id="cf-i-call" viewBox="0 0 24 24"><path d="M5 5c2 4 6 8 10 10l3-3 3 3-2 2c-1.5 1.5-4.5 1.5-10-4S3.5 6.5 5 5l2-2 3 3-3 3"/></symbol>
+    <symbol id="cf-i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></symbol>
+    <symbol id="cf-i-sms" viewBox="0 0 24 24"><path d="M21 15a3 3 0 0 1-3 3H9l-4 3V6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"/></symbol>
+    <symbol id="cf-i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></symbol>
+    <symbol id="cf-i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></symbol>
+    <symbol id="cf-i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 11h18"/></symbol>
+    <symbol id="cf-i-chevron" viewBox="0 0 24 24"><path d="M7 9l5 5 5-5"/></symbol>
+  </svg>
+  <div class="cf-backdrop" id="cfBackdrop" role="dialog" aria-modal="true" aria-labelledby="cfTitle" aria-describedby="cfDesc">
+    <div class="cf-modal" id="cfModal" tabindex="-1">
+      <header class="cf-head">
+        <div class="cf-row-center cf-gap-10">
+          <div class="avatar">AR</div>
+          <div>
+            <div class="cf-title" id="cfTitle">Collections — Notes / Follow-up</div>
+            <div class="cf-sub" id="cfDesc">Select a row in Master to load context</div>
+            <div class="cf-meta">
+              <span class="cf-chip muted">Cust ID: <strong id="cfMetaCustomerId">—</strong></span>
+              <span class="cf-chip">Project #: <strong id="cfMetaProject">—</strong></span>
+              <span class="cf-chip muted">Terms: <strong id="cfMetaTerms">—</strong></span>
+              <span class="cf-chip" id="cfMetaEmailWrap"><span class="cf-icon"><svg><use href="#cf-i-mail"/></svg></span><span id="cfMetaEmail">—</span></span>
+            </div>
+          </div>
+        </div>
+        <div class="cf-row-center cf-ml-auto">
+          <span class="cf-pill">Owner: <strong>&nbsp;Megs</strong></span>
+          <button class="cf-btn" id="cfClose">Close ✕</button>
+        </div>
+      </header>
+
+      <div class="cf-split">
+        <!-- Left: Timeline -->
+        <section class="cf-panel cf-panel--sky" aria-label="Timeline">
+          <div class="cf-panel-head">
+            <div class="cf-row-center">
+              <strong>Timeline</strong><span class="muted">• <span id="cfCount">0</span> entries</span>
+            </div>
+            <div class="cf-row">
+              <div class="cf-input-wrap cf-w-200"><span class="cf-icon"><svg><use href="#cf-i-search"/></svg></span>
+                <input id="cfSearch" class="cf-input" placeholder="Search notes, tags, mentions ( / )" />
+              </div>
+              <div class="cf-input-wrap"><span class="cf-icon"><svg><use href="#cf-i-sliders"/></svg></span>
+                <select id="cfFilter" class="cf-select" title="Status filter">
+                  <option value="">Status</option>
+                  <option>Pending</option><option>Contacted</option><option>Promised</option>
+                  <option>Overdue</option><option>Escalated</option><option>Paid</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="cf-panel-body">
+            <div class="cf-timeline" id="cfTimeline">
+              <div class="cf-day"><span class="cf-k">Today</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Composer -->
+        <section class="cf-panel cf-panel--pink" aria-label="Follow-up">
+          <div class="cf-panel-head">
+            <strong>New Note / Follow-up</strong>
+            <div class="cf-row">
+              <button class="cf-btn" data-tpl="call">+ Log Call</button>
+              <button class="cf-btn" data-tpl="email">+ Log Email</button>
+              <button class="cf-btn" data-tpl="sms">+ Log SMS</button>
+            </div>
+          </div>
+          <div class="cf-panel-body">
+            <div class="cf-form cf-composer-grid">
+              <!-- Row 1 -->
+              <div class="cf-form-section compact">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-sliders"/></svg></span><span class="cf-k">Status</span></div>
+                <div>
+                  <div class="cf-chips" role="group" aria-label="Status">
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Pending"><span class="cf-dot pending"></span> Pending</button>
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Contacted"><span class="cf-dot contacted"></span> Contacted</button>
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Promised"><span class="cf-dot promised"></span> Promised</button>
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Overdue"><span class="cf-dot overdue"></span> Overdue</button>
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Escalated"><span class="cf-dot escalated"></span> Escalated</button>
+                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Paid"><span class="cf-dot paid"></span> Paid</button>
+                  </div>
+                  <select id="cfStatus" class="cf-select sr-only" tabindex="-1" aria-hidden="true">
+                    <option>Pending</option><option>Contacted</option><option>Promised</option>
+                    <option>Overdue</option><option>Escalated</option><option>Paid</option>
+                  </select>
+                  <div class="cf-show-lg" style="margin-top:8px">
+                    <label class="cf-k sr-only">Tags</label>
+                    <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span>
+                      <input id="cfTags" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="cf-form-section compact">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-user"/></svg></span><span class="cf-k">Assign & Next</span></div>
+                <div class="cf-stack">
+                  <div>
+                    <label class="cf-k sr-only">Assign</label>
+                    <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-user"/></svg></span>
+                      <select id="cfAssign" class="cf-select">
+                        <option selected>Megs</option><option>Alex</option><option>Team Queue</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="cf-k sr-only">Next Follow-up</label>
+                    <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-clock"/></svg></span>
+                      <input id="cfNext" type="datetime-local" class="cf-input" />
+                    </div>
+                    <div class="cf-chips" style="margin-top:6px">
+                      <button type="button" class="cf-chip-btn cf-next-chip" data-next-days="1">+1d</button>
+                      <button type="button" class="cf-chip-btn cf-next-chip" data-next-days="3">+3d</button>
+                      <button type="button" class="cf-chip-btn cf-next-chip" data-next-days="7">+1w</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label class="cf-k sr-only">Promise to Pay (optional)</label>
+                    <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-calendar"/></svg></span>
+                      <input id="cfPTP" type="date" class="cf-input" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Row 2 -->
+              <div class="cf-form-section cf-span-2 cf-row-2">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-note"/></svg></span><span class="cf-k">Note</span></div>
+                <div class="cf-input-wrap"><span class="cf-icon"><svg><use href="#cf-i-note"/></svg></span>
+                  <textarea id="cfNote" class="cf-text cf-textarea" rows="6" placeholder="What happened? Remittance, contacts, commitments, disputes… (N to focus)"></textarea>
+                </div>
+              </div>
+              <div class="cf-form-section compact cf-col-3 cf-row-2">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-sliders"/></svg></span><span class="cf-k">Method & Templates</span></div>
+                <div>
+                  <div class="cf-chips" role="group" aria-label="Method">
+                    <button type="button" class="cf-chip-btn" data-group="method" data-value="Call">Call</button>
+                    <button type="button" class="cf-chip-btn" data-group="method" data-value="Email">Email</button>
+                    <button type="button" class="cf-chip-btn" data-group="method" data-value="SMS">SMS</button>
+                    <button type="button" class="cf-chip-btn" data-group="method" data-value="Portal">Portal</button>
+                    <button type="button" class="cf-chip-btn" data-group="method" data-value="Other">Other</button>
+                  </div>
+                  <select id="cfMethod" class="cf-select sr-only" tabindex="-1" aria-hidden="true">
+                    <option>Call</option><option>Email</option><option>SMS</option><option>Portal</option><option>Other</option>
+                  </select>
+                </div>
+                <div style="margin-top:8px">
+                  <div class="cf-k cf-mb-6">Quick Templates</div>
+                  <div class="cf-row" id="cfTplWrap"></div>
+                </div>
+              </div>
+
+              <!-- Tags row (optional) -->
+              <div class="cf-form-section compact cf-hide-lg">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span><span class="cf-k">Tags</span></div>
+                <div>
+                  <label class="cf-k sr-only">Tags</label>
+                  <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span>
+                    <input id="cfTags" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cf-foot">
+            <span class="muted cf-text-12">Auto-save draft • Tips: / search · N note · Esc close • <span id="cfSavedAt">—</span></span>
+            <div class="cf-row cf-ml-auto">
+              <button class="cf-btn" id="cfDiscard">Discard</button>
+              <button class="cf-btn primary" id="cfSave">Save Note</button>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>`;
+  if (!document.getElementById('cfBackdrop')) document.body.insertAdjacentHTML('beforeend', markup);
+
+  let fab = document.getElementById('cfOpenFab');
+  if (!fab){
+    fab = document.createElement('button');
+    fab.id = 'cfOpenFab';
+    fab.type = 'button';
+    fab.textContent = 'Follow-up';
+    document.body.appendChild(fab);
+  }
+
+  const $ = (s, el=document)=> el.querySelector(s);
+  const $$ = (s, el=document)=> Array.from(el.querySelectorAll(s));
+  const backdrop = $('#cfBackdrop');
+  const timeline  = $('#cfTimeline');
+  const savedAt   = $('#cfSavedAt');
+  const countEl   = $('#cfCount');
+
+  // Show FAB only when Collections subtabs are visible
+  function isCollectionsActive(){
+    const n = Array.from(document.querySelectorAll('nav.subnav[aria-label="Collections subtabs"]'));
+    return !!n.find(x=>!x.classList.contains('is-hidden'));
+  }
+  function syncFab(){ fab.style.display = isCollectionsActive() ? 'inline-flex' : 'none'; }
+  syncFab();
+  new MutationObserver(syncFab).observe(document.body, {attributes:true, childList:true, subtree:true});
+
+  // Modal helpers
+  function openModal(){
+    try{ $('#cfNext').value = new Date(Date.now()+60*60*1000).toISOString().slice(0,16); }catch{}
+    backdrop.classList.add('is-open');
+    $('#cfNote').focus();
+    document.addEventListener('keydown', onKey, true);
+    try{ if(typeof syncChips==='function') syncChips(); if(typeof renderTemplates==='function') renderTemplates(); }catch{}
+  }
+  function closeModal(){
+    backdrop.classList.remove('is-open');
+    document.removeEventListener('keydown', onKey, true);
+  }
+  function onKey(e){
+    if (e.key === 'Escape') closeModal();
+    if (e.key === '/') { e.preventDefault(); $('#cfSearch').focus(); }
+    if (e.key.toLowerCase() === 'n') { e.preventDefault(); $('#cfNote').focus(); }
+  }
+
+  fab.addEventListener('click', openModal);
+  $('#cfClose').addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) closeModal(); });
+
+  // Draft state + autosave
+  const state = { draft: { status:'Pending', method:'Call', next:'', ptp:'', note:'', tags:'', assign:'Megs' }, items: [] };
+  const fields = ['cfStatus','cfMethod','cfNext','cfPTP','cfNote','cfTags','cfAssign'].map(id=>$('#'+id));
+  fields.forEach(el => el.addEventListener('input', saveDraft));
+  // Method-specific templates
+  const METHOD_TPLS = {
+    Call: [
+      {label:'Voicemail', text:'Left voicemail. Requested remittance advice.'},
+      {label:'Spoke w/ AP', text:'Spoke with A/P; discussed payment timing and any blockers.'},
+      {label:'PTP', text:'Customer committed to payment on [date].'}
+    ],
+    Email: [
+      {label:'Reminder', text:'Sent follow-up email with statement attached.'},
+      {label:'Dispute Docs', text:'Requested supporting documentation for dispute review.'},
+      {label:'W-9', text:'Sent updated W-9 as requested.'}
+    ],
+    SMS: [
+      {label:'Reminder SMS', text:'Sent payment reminder SMS with portal link.'},
+      {label:'Short Link', text:'Shared secure portal link for payment.'}
+    ],
+    Portal: [
+      {label:'Invite', text:'Sent portal invite to primary contact.'},
+      {label:'Upload Request', text:'Requested document upload via portal.'}
+    ],
+    Other: [
+      {label:'General', text:'Captured relevant follow-up details.'}
+    ]
+  };
+  function renderTemplates(){
+    const method = $('#cfMethod')?.value || 'Call';
+    const wrap = document.getElementById('cfTplWrap'); if(!wrap) return;
+    const tpls = METHOD_TPLS[method] || [];
+    wrap.innerHTML = tpls.map(t=>`<button class=\"cf-btn\" data-snippet=\"${esc(t.text)}\">${esc(t.label)}</button>`).join('');
+  }
+  // Chip groups for Status / Method
+  function syncChips(){
+    const s = $('#cfStatus')?.value; const m=$('#cfMethod')?.value;
+    $$('.cf-chip-btn[data-group="status"]').forEach(b=> b.classList.toggle('is-active', b.dataset.value===s));
+    $$('.cf-chip-btn[data-group="method"]').forEach(b=> b.classList.toggle('is-active', b.dataset.value===m));
+  }
+  document.addEventListener('click', (e)=>{
+    const b = e.target.closest('.cf-chip-btn');
+    if(!b) return;
+    const group = b.dataset.group; const val = b.dataset.value;
+    if(group==='status'){ const sel=$('#cfStatus'); if(sel){ sel.value=val; sel.dispatchEvent(new Event('input',{bubbles:true})); } }
+    if(group==='method'){ const sel=$('#cfMethod'); if(sel){ sel.value=val; sel.dispatchEvent(new Event('input',{bubbles:true})); renderTemplates(); } }
+    syncChips();
+  });
+  function saveDraft(){
+    state.draft = {
+      status: $('#cfStatus').value,
+      method: $('#cfMethod').value,
+      next:   $('#cfNext').value,
+      ptp:    $('#cfPTP').value,
+      note:   $('#cfNote').value,
+      tags:   $('#cfTags').value,
+      assign: $('#cfAssign').value
+    };
+    savedAt.textContent = new Date().toLocaleTimeString();
+  }
+  // Quick-pick for Next Follow-up (+1d, +3d, +1w)
+  document.addEventListener('click', (e)=>{
+    const b = e.target.closest('.cf-next-chip'); if(!b) return;
+    const days = parseInt(b.dataset.nextDays||'0',10) || 0;
+    const inEl = document.getElementById('cfNext'); if(!inEl) return;
+    const base = (inEl.value && !isNaN(Date.parse(inEl.value))) ? new Date(inEl.value) : new Date();
+    base.setDate(base.getDate()+days);
+    // Normalize to local yyyy-mm-ddThh:mm
+    const pad = (n)=> String(n).padStart(2,'0');
+    const v = `${base.getFullYear()}-${pad(base.getMonth()+1)}-${pad(base.getDate())}T${pad(base.getHours())}:${pad(base.getMinutes())}`;
+    inEl.value = v;
+    inEl.dispatchEvent(new Event('input',{bubbles:true}));
+  });
+
+  // Snippets + templates
+  // Delegate for snippet buttons (supports dynamic templates)
+  document.addEventListener('click', (e)=>{ const b=e.target.closest('[data-snippet]'); if(b) insertSnippet(b.dataset.snippet||''); });
+  $$('[data-tpl]').forEach(b => b.addEventListener('click', ()=>{
+    const map = {
+      call:  { method:'Call',  status:'Contacted', text:'Called A/P; discussed payment status.' },
+      email: { method:'Email', status:'Pending',   text:'Sent follow-up email with statement attached.' },
+      sms:   { method:'SMS',   status:'Pending',   text:'Sent payment reminder SMS with portal link.' }
+    };
+    const t = map[b.dataset.tpl]; if(!t) return;
+    $('#cfMethod').value = t.method; $('#cfStatus').value = t.status; syncChips(); renderTemplates(); insertSnippet(t.text); $('#cfNote').focus();
+  }));
+  function insertSnippet(text){
+    const ta = $('#cfNote');
+    const start = ta.selectionStart ?? ta.value.length;
+    const end   = ta.selectionEnd ?? ta.value.length;
+    const before = ta.value.slice(0, start);
+    const after  = ta.value.slice(end);
+    const needsNL = before && !before.endsWith('\n') ? '\n' : '';
+    ta.value = before + needsNL + text + after;
+    const pos = (before + needsNL + text).length;
+    ta.selectionStart = ta.selectionEnd = pos;
+    ta.dispatchEvent(new Event('input', {bubbles:true}));
+  }
+
+  // Save -> append to timeline (front-end only)
+  $('#cfSave').addEventListener('click', ()=>{
+    const d = { ...state.draft };
+    if (!d.note.trim()) { showToast?.('Add a brief note before saving.','error'); return; }
+    const el = renderItem(d);
+    timeline.insertBefore(el, timeline.children[1] || null);
+    state.items.unshift(d);
+    countEl.textContent = String(state.items.length);
+    $('#cfNote').value = ''; $('#cfTags').value = ''; saveDraft();
+    el.style.outline = '2px solid rgba(111,92,255,.4)'; setTimeout(()=> el.style.outline='none', 600);
+  });
+  $('#cfDiscard').addEventListener('click', ()=>{
+    if (confirm('Discard current draft?')){ $('#cfNote').value=''; $('#cfTags').value=''; saveDraft(); }
+  });
+
+  function renderItem(d){
+    const wrap = document.createElement('article');
+    wrap.className = 'cf-item';
+    wrap.dataset.status = d.status;
+    const time = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const sc = ({Pending:'pending',Contacted:'contacted',Promised:'promised',Overdue:'overdue',Escalated:'escalated',Paid:'paid'})[d.status] || 'pending';
+    const nextPill = d.next ? `<span class="cf-pill">Next: ${fmtDT(d.next)}</span>` : '';
+    const ptpPill  = d.ptp  ? `<span class="cf-pill">PTP: ${fmtD(d.ptp)}</span>` : '';
+    const method = d.method || 'Other';
+    const sym = ({Call:'#cf-i-call', Email:'#cf-i-mail', SMS:'#cf-i-sms', Portal:'#cf-i-link', Other:'#cf-i-note'})[method] || '#cf-i-note';
+    const methodClass = 'method-' + String(method).toLowerCase();
+    wrap.innerHTML = `
+      <div class="cf-bullet"><svg><use href='${sym}'/></svg></div>
+      <div>
+        <div class="cf-item-head">
+          <span><strong>Note</strong> • You</span>
+          <span class="cf-status ${sc}">${esc(d.status)}</span>
+          ${ptpPill}${nextPill}
+          <span class="cf-pill ${methodClass}">${esc(d.method)}</span>
+        </div>
+        <div class="cf-item-body">${esc(d.note)}</div>
+        <div class="cf-item-meta">
+          <span>${time}</span>${renderTags(d.tags)}
+        </div>
+      </div>`;
+    return wrap;
+  }
+  function renderTags(s){
+    const tags = (s||'').split(',').map(t=>t.trim()).filter(Boolean);
+    return tags.map(t=>`<span class="cf-tag">${esc(t)}</span>`).join('');
+  }
+  function fmtDT(v){ try{ const d=new Date(v); return d.toLocaleString([], {month:'short', day:'2-digit', hour:'2-digit', minute:'2-digit'}); }catch{ return v; } }
+  function fmtD(v){ try{ const d=new Date(v); return d.toLocaleDateString([], {month:'short', day:'2-digit'}); }catch{ return v; } }
+  function esc(s){ return String(s).replace(/[&<>"']/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c])); }
+
+  // Filters / search
+  $('#cfFilter').addEventListener('change', applyFilters);
+  $('#cfSearch').addEventListener('input', applyFilters);
+  function applyFilters(){
+    const f = $('#cfFilter').value;
+    const q = $('#cfSearch').value.toLowerCase().trim();
+    $$('.cf-item', timeline).forEach(el=>{
+      const okStatus = !f || el.dataset.status === f;
+      const okQuery  = !q || el.textContent.toLowerCase().includes(q);
+      el.style.display = (okStatus && okQuery) ? '' : 'none';
+    });
+  }
+
+  // ================== Open modal from Master subtab table ==================
+  const masterPanel = document.querySelector('[data-subtab-panel="col-master"]');
+  if (masterPanel) {
+    masterPanel.addEventListener('click', (e)=>{
+      if (e.target.closest('button, a, input, select, textarea')) return;
+      const row = e.target.closest('.ar-table tbody tr') || e.target.closest('tr');
+      if (!row) return;
+
+      const debtorName = row.dataset.debtor || row.querySelector('td')?.textContent.trim() || 'Account';
+      const invoiceId  = row.dataset.invoice || row.querySelector('td:nth-child(2)')?.textContent.trim() || '';
+      const customerId = row.dataset.customerId || '';
+      const projectNum = row.dataset.projectId || '';
+      const terms      = row.dataset.terms || '';
+      const email      = row.dataset.email || '';
+
+      document.getElementById('cfTitle').textContent = debtorName;
+      document.getElementById('cfDesc').textContent  = invoiceId ? `Invoice ${invoiceId}` : 'Collections follow-up';
+      document.getElementById('cfMetaCustomerId').textContent = customerId || '—';
+      document.getElementById('cfMetaProject').textContent    = projectNum || '—';
+      document.getElementById('cfMetaTerms').textContent      = terms || '—';
+
+      const emailEl = document.getElementById('cfMetaEmail');
+      const wrapEl  = document.getElementById('cfMetaEmailWrap');
+      if (email) {
+        emailEl.textContent = email;
+        wrapEl.title = 'Click to copy';
+        wrapEl.style.cursor = 'copy';
+        wrapEl.onclick = ()=> { navigator.clipboard?.writeText(email).then(()=> showToast?.('Email copied')); };
+      } else {
+        emailEl.textContent = '—';
+        wrapEl.removeAttribute('title');
+        wrapEl.style.cursor = 'default';
+        wrapEl.onclick = null;
+      }
+
+      openModal();
+    });
+  }
+}
+
 
 // ---------------------- Add widgets via placeholders ------------------------
 function initWidgetAdd(){
@@ -4048,7 +4546,10 @@ function initServiceTabs() {
     mode: 'none', // 'none' | 'gas'
     gasUrl: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec'
   };
-  try { document.getElementById('modeBadge')?.textContent = `Importer: ${IMPORTER.mode}`; } catch {}
+  try {
+    const mb = document.getElementById('modeBadge');
+    if (mb) mb.textContent = `Importer: ${IMPORTER.mode}`;
+  } catch {}
 
   // ---------- Utilities ----------
   const $ = (s, c = document) => c.querySelector(s);
@@ -4358,47 +4859,69 @@ function initServiceTabs() {
           <button class="btn" id="d-reject">Reject</button>
         </div>
       </div>
-      ${warn.length ? `<div class="panel" style="border-color:#ffd6a6;background:#fff7ed">
-        <strong>Warnings:</strong><ul style="margin:6px 0 0 16px">${warn.map(w => `<li>${esc(w)}`).join('')}</ul>
-        ${!canApprove ? '<div class="sml">You can still approve with the override button.</div>' : ''}
-      </div>` : ''}
 
-      <div class="panel" style="margin-top:8px">
-        <h3>Tech Submission</h3>
-        ${kv("Requester", r.requester)}${kv("Sales Rep", r.rep || "—")}
-        ${kv("Techs", r.techs.join(', '))}
-        ${kv("Drive Hours", r.drive)}${kv("Labor Hours", r.labor)}
-        <div><strong>Materials</strong>${matTable(r.mats)}</div>
-        <div><strong>Scope</strong><div class="badge" style="background:#fff">${esc(r.scope)}</div></div>
-        <div class="sml">Log:<br>${r.log.map(x => '• ' + esc(x)).join('<br>')}</div>
+      <div class="panel tm-sections" style="margin-top:8px">
+        <section class="tm-section tm-section--sub">
+          <h3 class="tm-section-title">Tech Submission</h3>
+          <div class="tm-kv">
+            ${kv("Requester", r.requester)}${kv("Sales Rep", r.rep || "—")}
+            ${kv("Techs", r.techs.join(', '))}
+            ${kv("Drive Hours", r.drive)}${kv("Labor Hours", r.labor)}
+          </div>
+        </section>
+        <section class="tm-section tm-section--mats">
+          <h3 class="tm-section-title">Materials</h3>
+          <div class="tm-mats">${matTable(r.mats)}</div>
+        </section>
+        <section class="tm-section tm-section--scope">
+          <h3 class="tm-section-title">Scope</h3>
+          <div class="tm-note">${esc(r.scope)}</div>
+        </section>
+        <section class="tm-section tm-section--log">
+          <h3 class="tm-section-title">Log</h3>
+          <ul class="tm-log">${r.log.map(x => `<li>${esc(x)}`).join('')}</ul>
+        </section>
       </div>
 
-      <div class="panel" style="margin-top:8px">
-        <h3>Sales Edits <span id="changedCount" class="sml"></span></h3>
-        ${editRow("Sales Price","e-price", se.salesPrice ?? baseline.salesPrice, (se.salesPrice ?? baseline.salesPrice) !== baseline.salesPrice)}
-        ${editRow("Credits","e-credit", se.credits ?? baseline.credits, (se.credits ?? baseline.credits) !== baseline.credits)}
-        ${editRowText("Bill-To","e-bill", se.billTo ?? baseline.billTo, (se.billTo ?? baseline.billTo) !== baseline.billTo)}
-        ${editRowText("Ship-To","e-ship", se.shipTo ?? baseline.shipTo, (se.shipTo ?? baseline.shipTo) !== baseline.shipTo)}
-        <div class="kvM ${$('#rev-changes-only')?.checked && ((se.detail || 'lump') === 'lump') ? 'hide' : ''}">
-          <div>Detail ${(se.detail || 'lump') !== 'lump' ? '<span class="badge changed">changed</span>' : ''}</div>
-          <div><select id="e-detail" class="input">
-            <option value="lump" ${(se.detail || 'lump') === 'lump' ? 'selected' : ''}>Lump Sum</option>
-            <option value="line_with_prices" ${se.detail === 'line_with_prices' ? 'selected' : ''}>Line by line (with prices)</option>
-            <option value="line_no_prices" ${se.detail === 'line_no_prices' ? 'selected' : ''}>Line by line (without prices)</option>
-          </select></div>
+      <div class="panel sales-grid" style="margin-top:8px">
+        <div class="sales-card">
+          <h3 class="tm-section-title">Actuals Sent for Approval</h3>
+          <div class="tm-kv">
+            ${kv("Sales Price", baseline.salesPrice)}
+            ${kv("Credits", baseline.credits)}
+            ${kv("Bill-To", baseline.billTo || '—')}
+            ${kv("Ship-To", baseline.shipTo || '—')}
+            ${kv("Detail", (baseline.detail || 'lump').replaceAll('_',' '))}
+            ${kv("Scope", baseline.scope || '—')}
+          </div>
         </div>
-        ${editRowArea("Scope","e-scope", se.scope ?? baseline.scope, (se.scope ?? baseline.scope) !== baseline.scope)}
-        ${editRowArea("Customer Notes","e-cust", se.customerNotes ?? '', (se.customerNotes ?? '') !== '')}
-        ${editRowArea("Internal Notes","e-int", se.internalNotes ?? '', (se.internalNotes ?? '') !== '')}
+        <div class="sales-card">
+          <h3 class="tm-section-title">Edits From Sales <span id="changedCount" class="sml"></span></h3>
+          ${editRow("Sales Price","e-price", se.salesPrice ?? baseline.salesPrice, (se.salesPrice ?? baseline.salesPrice) !== baseline.salesPrice)}
+          ${editRow("Credits","e-credit", se.credits ?? baseline.credits, (se.credits ?? baseline.credits) !== baseline.credits)}
+          ${editRowText("Bill-To","e-bill", se.billTo ?? baseline.billTo, (se.billTo ?? baseline.billTo) !== baseline.billTo)}
+          ${editRowText("Ship-To","e-ship", se.shipTo ?? baseline.shipTo, (se.shipTo ?? baseline.shipTo) !== baseline.shipTo)}
+          <div class="kvM ${$('#rev-changes-only')?.checked && ((se.detail || 'lump') === 'lump') ? 'hide' : ''}">
+            <div>Detail ${(se.detail || 'lump') !== 'lump' ? '<span class="badge changed">changed</span>' : ''}</div>
+            <div><select id="e-detail" class="input fancy">
+              <option value="lump" ${(se.detail || 'lump') === 'lump' ? 'selected' : ''}>Lump Sum</option>
+              <option value="line_with_prices" ${se.detail === 'line_with_prices' ? 'selected' : ''}>Line by line (with prices)</option>
+              <option value="line_no_prices" ${se.detail === 'line_no_prices' ? 'selected' : ''}>Line by line (without prices)</option>
+            </select></div>
+          </div>
+          ${editRowArea("Scope","e-scope", se.scope ?? baseline.scope, (se.scope ?? baseline.scope) !== baseline.scope)}
+          ${editRowArea("Customer Notes","e-cust", se.customerNotes ?? '', (se.customerNotes ?? '') !== '')}
+          ${editRowArea("Internal Notes","e-int", se.internalNotes ?? '', (se.internalNotes ?? '') !== '')}
 
-        <div class="panel" style="margin-top:10px">
-          <h3 style="margin-bottom:6px">Attachments</h3>
-          <div id="att-list" class="sml">${se.attachments.length ? '' : 'No attachments yet.'}</div>
-          <div style="display:grid;grid-template-columns:1fr 120px 120px auto;gap:6px;margin-top:8px">
-            <input id="att-name" class="input" placeholder="filename.pdf (simulate)">
-            <label class="sml" style="display:flex;align-items:center;gap:6px"><input id="att-include" type="checkbox" checked> Include on invoice</label>
-            <label class="sml" style="display:flex;align-items:center;gap:6px"><input id="att-internal" type="checkbox"> Internal only</label>
-            <button class="btn" id="att-add">Add</button>
+          <div class="attach-card">
+            <h4 class="tm-mini-title">Attachments</h4>
+            <div id="att-list" class="sml">${se.attachments.length ? '' : 'No attachments yet.'}</div>
+            <div class="att-grid">
+              <input id="att-name" class="input fancy" placeholder="filename.pdf (simulate)">
+              <label class="sml chk"><input id="att-include" type="checkbox" checked> Include on invoice</label>
+              <label class="sml chk"><input id="att-internal" type="checkbox"> Internal only</label>
+              <button class="btn" id="att-add">Add</button>
+            </div>
           </div>
         </div>
       </div>`;
@@ -4407,6 +4930,26 @@ function initServiceTabs() {
     drawAttList(se.attachments);
     // Changes count
     $('#changedCount').textContent = $$('#rev-detail .badge.changed').length ? `• ${$$('#rev-detail .badge.changed').length} changed` : '';
+
+    // Apply field-level warnings instead of a banner
+    try{
+      const escAttr = (s)=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const addWarn = (id, msg)=>{
+        const el = document.getElementById(id);
+        if(!el) return;
+        el.classList.add('needs-attn');
+        el.setAttribute('aria-invalid','true');
+        const flag = document.createElement('span');
+        flag.className = 'attn-flag';
+        flag.title = msg;
+        flag.textContent = '!';
+        el.insertAdjacentElement('afterend', flag);
+      };
+      if ((se.detail || 'lump') === 'lump' && !(se.salesPrice > 0)) addWarn('e-price', 'Lump sum requires a positive Sales Price.');
+      if (!se.billTo) addWarn('e-bill', 'Bill-To is required.');
+      if (!se.shipTo) addWarn('e-ship', 'Ship-To is required.');
+      if ((se.credits || 0) < 0) addWarn('e-credit', 'Credits cannot be negative.');
+    }catch{}
 
     // Wire actions
     $('#d-compose').onclick = () => openSlackComposer({ type: 'record', rec: r });
@@ -4459,8 +5002,11 @@ function initServiceTabs() {
   function editRowText(k, id, val, changed) { return `<div class="kvM"><div>${esc(k)} ${changed ? '<span class="badge changed">changed</span>' : ''}</div><div><input id="${id}" class="input" value="${esc(val)}" /></div></div>`; }
   function editRowArea(k, id, val, changed) { return `<div class="kvM"><div>${esc(k)} ${changed ? '<span class="badge changed">changed</span>' : ''}</div><div><textarea id="${id}" class="input" rows="3">${esc(val)}</textarea></div></div>`; }
   function matTable(mats) {
-    return `<table class="tableP"><thead><tr><th>SKU</th><th>Desc</th><th>Qty</th><th>UOM</th></tr></thead><tbody>
-      ${mats.map(m => `<tr><td>${esc(m.sku)}</td><td>${esc(m.desc)}</td><td>${m.qty}</td><td>${esc(m.unit)}</td></tr>`).join('')}</tbody></table>`;
+    const rows = mats.map(m => `<tr><td>${esc(m.sku)}</td><td>${esc(m.desc)}</td><td class="mono">${m.qty}</td><td>${esc(m.unit)}</td></tr>`);
+    const pad = Math.max(0, 10 - rows.length);
+    for (let i=0;i<pad;i++) rows.push(`<tr class="empty"><td>&nbsp;</td><td></td><td></td><td></td></tr>`);
+    return `<table class="tableP tm-mats-table"><thead><tr><th>SKU</th><th>Desc</th><th>Qty</th><th>UOM</th></tr></thead><tbody>
+      ${rows.join('')}</tbody></table>`;
   }
 
   // ---------- CSV export + optional GAS POST ----------
@@ -4749,5 +5295,3 @@ function setupServiceTabs(){
   renderKanban(); renderReview(); renderMaterials(); renderRules();
   $('#svc-wip-search')?.addEventListener('input', renderKanban);
 }
-
-
