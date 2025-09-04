@@ -82,7 +82,7 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="logo">⫷⫸</div>
-        <span>Startup XYZ</span>
+        <span>RRA Dash</span>
       </div>
 
       <nav class="nav">
@@ -160,7 +160,6 @@
           <!-- Overview handled by main tab; removed from leftnav -->
           <a class="nav-subitem" data-subtab-jump="service-wip">WIP</a>
           <a class="nav-subitem" data-subtab-jump="service-billing">Billing</a>
-          <a class="nav-subitem" data-subtab-jump="service-review">Review</a>
           <a class="nav-subitem" data-subtab-jump="service-tm">T&amp;M</a>
           <a class="nav-subitem" data-subtab-jump="service-pricing">Pricing</a>
           <a class="nav-subitem" data-subtab-jump="service-requests">Requests</a>
@@ -305,6 +304,8 @@
       <header class="topbar">
         <h1>Hello, <span class="gradient-text">Megs</span></h1>
         <div class="actions">
+          <button class="icon-btn" id="sidebarToggleBtn" title="Toggle sidebar" aria-pressed="false">☰</button>
+          <button class="icon-btn" id="autoFitBtn" title="Auto-fit to window" aria-pressed="false">⇆</button>
           <div class="search">
             <input id="globalSearch" placeholder="Search" />
           </div>
@@ -1184,12 +1185,7 @@
               </select>
             </div>
             <div class="cfg-row"><label>Timezone</label><input id="adminTimezone" placeholder="UTC" /></div>
-            <div class="cfg-row"><label>UI Scale</label>
-              <div>
-                <input id="adminUiScale" type="range" min="0.6" max="1.2" step="0.01" style="vertical-align:middle" />
-                <span id="adminUiScaleVal" class="muted" style="margin-left:8px">80%</span>
-              </div>
-            </div>
+            <!-- UI Scale control removed: Auto-fit manages scaling -->
             <div class="cfg-row"><label></label><button class="mini-btn" id="adminGeneralSave">Save</button></div>
           </div>
         </div>

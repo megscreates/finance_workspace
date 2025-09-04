@@ -695,6 +695,7 @@ function __inlineInitWidgetSystem(){
           <button class="mini-btn delete-btn" title="Remove">–</button>
         </div>
       </header>
+      <div class="cf-banner" id="cfReminderBanner" style="display:none">Reminder: Next follow-up is past due.</div>
       <div class="widget-body">${renderBody(type, id)}</div>
     `;
     applySpans(el);
@@ -3584,6 +3585,10 @@ function initCollectionsFollowupModal(){
               <span class="cf-chip">Project #: <strong id="cfMetaProject">—</strong></span>
               <span class="cf-chip muted">Terms: <strong id="cfMetaTerms">—</strong></span>
               <span class="cf-chip" id="cfMetaEmailWrap"><span class="cf-icon"><svg><use href="#cf-i-mail"/></svg></span><span id="cfMetaEmail">—</span></span>
+              <span class="cf-chip">Invoice: <strong id="cfMetaInvoice">—</strong></span>
+              <span class="cf-chip">Open: <strong id="cfMetaOpen">—</strong></span>
+              <span class="cf-chip muted">DPD: <strong id="cfMetaDPD">—</strong></span>
+              <span class="cf-chip" id="cfMetaRisk">Risk: <strong id="cfMetaRiskVal">—</strong></span>
             </div>
           </div>
         </div>
@@ -3636,27 +3641,31 @@ function initCollectionsFollowupModal(){
               <div class="cf-form-section compact">
                 <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-sliders"/></svg></span><span class="cf-k">Status</span></div>
                 <div>
-                  <div class="cf-chips" role="group" aria-label="Status">
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Pending"><span class="cf-dot pending"></span> Pending</button>
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Contacted"><span class="cf-dot contacted"></span> Contacted</button>
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Promised"><span class="cf-dot promised"></span> Promised</button>
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Overdue"><span class="cf-dot overdue"></span> Overdue</button>
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Escalated"><span class="cf-dot escalated"></span> Escalated</button>
-                    <button type="button" class="cf-chip-btn" data-group="status" data-value="Paid"><span class="cf-dot paid"></span> Paid</button>
+                  <div class="cf-chips cf-chips--status" role="group" aria-label="Status">
+                    <button type="button" class="cf-chip-btn status-pending" data-group="status" data-value="Pending"><span class="cf-dot pending"></span> Pending</button>
+                    <button type="button" class="cf-chip-btn status-contacted" data-group="status" data-value="Contacted"><span class="cf-dot contacted"></span> Contacted</button>
+                    <button type="button" class="cf-chip-btn status-promised" data-group="status" data-value="Promised"><span class="cf-dot promised"></span> Promised</button>
+                    <button type="button" class="cf-chip-btn status-overdue" data-group="status" data-value="Overdue"><span class="cf-dot overdue"></span> Overdue</button>
+                    <button type="button" class="cf-chip-btn status-escalated" data-group="status" data-value="Escalated"><span class="cf-dot escalated"></span> Escalated</button>
+                    <button type="button" class="cf-chip-btn status-paid" data-group="status" data-value="Paid"><span class="cf-dot paid"></span> Paid</button>
                   </div>
                   <select id="cfStatus" class="cf-select sr-only" tabindex="-1" aria-hidden="true">
                     <option>Pending</option><option>Contacted</option><option>Promised</option>
                     <option>Overdue</option><option>Escalated</option><option>Paid</option>
                   </select>
-                  <div class="cf-show-lg" style="margin-top:8px">
-                    <label class="cf-k sr-only">Tags</label>
-                    <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span>
-                      <input id="cfTags" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
-                    </div>
+                </div>
+              </div>
+              <!-- Row 1, Column 2: Tags (large screens) -->
+              <div class="cf-form-section compact cf-show-lg">
+                <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span><span class="cf-k">Tags</span></div>
+                <div>
+                  <label class="cf-k sr-only">Tags</label>
+                  <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span>
+                    <input id="cfTags" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
                   </div>
                 </div>
               </div>
-              <div class="cf-form-section compact">
+              <div class="cf-form-section compact cf-col-3">
                 <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-user"/></svg></span><span class="cf-k">Assign & Next</span></div>
                 <div class="cf-stack">
                   <div>
@@ -3693,6 +3702,15 @@ function initCollectionsFollowupModal(){
                 <div class="cf-input-wrap"><span class="cf-icon"><svg><use href="#cf-i-note"/></svg></span>
                   <textarea id="cfNote" class="cf-text cf-textarea" rows="6" placeholder="What happened? Remittance, contacts, commitments, disputes… (N to focus)"></textarea>
                 </div>
+                <div class="cf-att-row">
+                  <div class="cf-attach-input">
+                    <span class="cf-icon"><svg><use href="#cf-i-link"/></svg></span>
+                    <input id="cfAttUrl" class="cf-input" placeholder="Paste link and Add" />
+                    <button class="cf-btn" id="cfAttAdd">Add</button>
+                    <button class="cf-btn" id="cfDictate">Dictate</button>
+                  </div>
+                  <div id="cfAttList" class="cf-att-row"></div>
+                </div>
               </div>
               <div class="cf-form-section compact cf-col-3 cf-row-2">
                 <div class="cf-form-title"><span class="cf-icon"><svg><use href="#cf-i-sliders"/></svg></span><span class="cf-k">Method & Templates</span></div>
@@ -3720,7 +3738,7 @@ function initCollectionsFollowupModal(){
                 <div>
                   <label class="cf-k sr-only">Tags</label>
                   <div class="cf-input-wrap compact"><span class="cf-icon"><svg><use href="#cf-i-tag"/></svg></span>
-                    <input id="cfTags" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
+                    <input id="cfTagsAlt" class="cf-input" placeholder="#voicemail, #dispute, @ap_trent" />
                   </div>
                 </div>
               </div>
@@ -3772,6 +3790,7 @@ function initCollectionsFollowupModal(){
     $('#cfNote').focus();
     document.addEventListener('keydown', onKey, true);
     try{ if(typeof syncChips==='function') syncChips(); if(typeof renderTemplates==='function') renderTemplates(); }catch{}
+    updateReminderBanner?.();
   }
   function closeModal(){
     backdrop.classList.remove('is-open');
@@ -3791,6 +3810,34 @@ function initCollectionsFollowupModal(){
   const state = { draft: { status:'Pending', method:'Call', next:'', ptp:'', note:'', tags:'', assign:'Megs' }, items: [] };
   const fields = ['cfStatus','cfMethod','cfNext','cfPTP','cfNote','cfTags','cfAssign'].map(id=>$('#'+id));
   fields.forEach(el => el.addEventListener('input', saveDraft));
+  state.attachments = [];
+  const attUrl = document.getElementById('cfAttUrl');
+  const attAdd = document.getElementById('cfAttAdd');
+  const attList= document.getElementById('cfAttList');
+  function drawAtt(){ if(attList) attList.innerHTML = state.attachments.map((u,i)=>`<span class=\"cf-attach-chip\" data-i=\"${i}\">Link<span class=\"x\" data-del=\"${i}\">×</span></span>`).join(''); }
+  if(attAdd) attAdd.addEventListener('click', ()=>{ const u=(attUrl?.value||'').trim(); if(!u) return; state.attachments.push(u); attUrl.value=''; drawAtt(); });
+  document.addEventListener('click', (e)=>{ const x=e.target.closest('.cf-attach-chip .x'); if(!x) return; const i=parseInt(x.dataset.del||'-1',10); if(i>=0){ state.attachments.splice(i,1); drawAtt(); } });
+
+  // Voice dictation
+  let rec=null, recActive=false;
+  const dictateBtn = document.getElementById('cfDictate');
+  if(dictateBtn){
+    dictateBtn.addEventListener('click', ()=>{
+      try{
+        const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition; if(!Ctor){ showToast?.('Speech API not supported','error'); return; }
+        if(!rec){ rec = new Ctor(); rec.lang='en-US'; rec.interimResults=true; rec.continuous=true; rec.onresult = (ev)=>{
+          let str=''; for(let i=ev.resultIndex;i<ev.results.length;i++){ str += ev.results[i][0].transcript; }
+          insertSnippet(' '+str.trim());
+        }; rec.onend = ()=>{ recActive=false; dictateBtn.textContent='Dictate'; } }
+        if(!recActive){ rec.start(); recActive=true; dictateBtn.textContent='Stop'; }
+        else { rec.stop(); }
+      }catch(err){ console.error(err); showToast?.('Mic error','error'); }
+    });
+  }
+  // Keep small-screen tags in sync with main #cfTags
+  const tagsAlt = document.getElementById('cfTagsAlt');
+  const tagsMain = document.getElementById('cfTags');
+  if(tagsAlt){ tagsAlt.addEventListener('input', ()=>{ if(tagsMain){ tagsMain.value = tagsAlt.value; tagsMain.dispatchEvent(new Event('input',{bubbles:true})); } }); }
   // Method-specific templates
   const METHOD_TPLS = {
     Call: [
@@ -3846,6 +3893,7 @@ function initCollectionsFollowupModal(){
       assign: $('#cfAssign').value
     };
     savedAt.textContent = new Date().toLocaleTimeString();
+    updateReminderBanner?.();
   }
   // Quick-pick for Next Follow-up (+1d, +3d, +1w)
   document.addEventListener('click', (e)=>{
@@ -3874,6 +3922,7 @@ function initCollectionsFollowupModal(){
     $('#cfMethod').value = t.method; $('#cfStatus').value = t.status; syncChips(); renderTemplates(); insertSnippet(t.text); $('#cfNote').focus();
   }));
   function insertSnippet(text){
+    text = resolveVars(text);
     const ta = $('#cfNote');
     const start = ta.selectionStart ?? ta.value.length;
     const end   = ta.selectionEnd ?? ta.value.length;
@@ -3885,11 +3934,29 @@ function initCollectionsFollowupModal(){
     ta.selectionStart = ta.selectionEnd = pos;
     ta.dispatchEvent(new Event('input', {bubbles:true}));
   }
+  function resolveVars(t){
+    const map = {
+      '{{invoiceId}}': currentContext?.invoiceId || '',
+      '{{customerName}}': currentContext?.customerName || '',
+      '{{openBalance}}': currentContext?.openBalance || '',
+      '{{dpd}}': currentContext?.dpd || '',
+      '{{risk}}': currentContext?.risk || ''
+    };
+    return String(t).replace(/\{\{(invoiceId|customerName|openBalance|dpd|risk)\}\}/g, m=>map[m]||'');
+  }
 
   // Save -> append to timeline (front-end only)
   $('#cfSave').addEventListener('click', ()=>{
     const d = { ...state.draft };
     if (!d.note.trim()) { showToast?.('Add a brief note before saving.','error'); return; }
+    // Escalation rule based on context
+    try{
+      const dpdNum = parseInt(currentContext?.dpd || '0', 10);
+      if ((dpdNum>=60) || (/high/i.test(currentContext?.risk||''))){
+        const t = (d.tags||'');
+        if(!/\b#Escalated\b/i.test(t)) d.tags = (t? t+ ', ':'') + '#Escalated';
+      }
+    }catch{}
     const el = renderItem(d);
     timeline.insertBefore(el, timeline.children[1] || null);
     state.items.unshift(d);
@@ -3963,12 +4030,21 @@ function initCollectionsFollowupModal(){
       const projectNum = row.dataset.projectId || '';
       const terms      = row.dataset.terms || '';
       const email      = row.dataset.email || '';
+      const openBal    = row.dataset.open || row.dataset.openBalance || '';
+      const dpd        = row.dataset.dpd || row.dataset.daysPastDue || '';
+      const risk       = row.dataset.risk || '';
 
       document.getElementById('cfTitle').textContent = debtorName;
       document.getElementById('cfDesc').textContent  = invoiceId ? `Invoice ${invoiceId}` : 'Collections follow-up';
       document.getElementById('cfMetaCustomerId').textContent = customerId || '—';
       document.getElementById('cfMetaProject').textContent    = projectNum || '—';
       document.getElementById('cfMetaTerms').textContent      = terms || '—';
+      const invEl = document.getElementById('cfMetaInvoice'); if(invEl) invEl.textContent = invoiceId || '—';
+      const openEl = document.getElementById('cfMetaOpen'); if(openEl) openEl.textContent = openBal || '—';
+      const dpdEl = document.getElementById('cfMetaDPD'); if(dpdEl) dpdEl.textContent = dpd || '—';
+      const riskWrap = document.getElementById('cfMetaRisk'); const riskVal = document.getElementById('cfMetaRiskVal');
+      if(riskVal) riskVal.textContent = risk || '—';
+      if(riskWrap){ riskWrap.style.background = /high/i.test(risk||'')? '#ffeaea' : /med/i.test(risk||'')? '#fff7d6' : '#ecfdf5'; }
 
       const emailEl = document.getElementById('cfMetaEmail');
       const wrapEl  = document.getElementById('cfMetaEmailWrap');
@@ -3984,8 +4060,31 @@ function initCollectionsFollowupModal(){
         wrapEl.onclick = null;
       }
 
+      currentContext = { invoiceId, customerName: debtorName, openBalance: openBal, dpd, risk };
       openModal();
+      ensureReminderBadge(row, dpd);
     });
+  }
+
+  function ensureReminderBadge(row, dpd){
+    try{
+      const n = parseInt(dpd||'0',10); if(!(n>0)) return;
+      const first = row.querySelector('td'); if(!first) return;
+      if(first.querySelector('.ar-rem-badge')) return;
+      const b = document.createElement('span'); b.className='ar-rem-badge'; b.textContent='Reminder'; first.appendChild(b);
+    }catch{}
+  }
+
+  function updateReminderBanner(){
+    try{
+      const nextStr = $('#cfNext')?.value || '';
+      let late = false;
+      if(nextStr){ const dt=new Date(nextStr); if(!isNaN(+dt) && dt < new Date()) late = true; }
+      if(!late){
+        for(const it of state.items){ if(it.next){ const dt=new Date(it.next); if(!isNaN(+dt) && dt < new Date()) { late=true; break; } } }
+      }
+      const el = document.getElementById('cfReminderBanner'); if(el) el.style.display = late ? 'block' : 'none';
+    }catch{}
   }
 }
 
